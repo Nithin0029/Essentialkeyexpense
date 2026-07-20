@@ -7,17 +7,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,22 +29,26 @@ import com.nothing.expensetracker.sync.SheetsAuthManager
 import com.nothing.expensetracker.sync.SyncPrefs
 import com.nothing.expensetracker.sync.SyncScheduler
 import com.nothing.expensetracker.ui.MainViewModel
+import com.nothing.expensetracker.ui.components.CategoryDonutChart
 import com.nothing.expensetracker.ui.theme.EssentialExpenseTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
+
+// Update this constant with each release!
+const val CURRENT_VERSION_TAG = "v1.0.0" 
+const val GITHUB_REPO_USER = "abhishekmannatharaj"
+const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Paste your Google Sheet ID here (one-time setup)
-        SyncPrefs.setSpreadsheetId(
-            this, 
-            "1H7NDr8exrF78vYv_ww8NR8NVovvu4AqxE8SqkU_mFCI"
-        )
-
         enableEdgeToEdge()
         setContent {
             EssentialExpenseTrackerTheme {
@@ -66,7 +66,18 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
     val expenses by viewModel.expenses.collectAsState()
+    val categoryExpenses by viewModel.categoryExpenses.collectAsState()
+    val selectedMonth by viewModel.selectedMonth.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
+    
+    // 🔍 Check GitHub for app updates silently on launch
+    CheckForAppUpdates(context = context)
+
+    var sheetIdInput by remember {
+        mutableStateOf(SyncPrefs.getSpreadsheetId(context))
+    }
+
     var accountName by remember { 
         val savedEmail = context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
             .getString("account_email", null)
@@ -79,15 +90,10 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
-            
-            // The specific scope we need for Google Sheets
             val sheetsScope = com.google.android.gms.common.api.Scope(com.google.api.services.sheets.v4.SheetsScopes.SPREADSHEETS)
 
-            // Check if Google actually granted the permission!
             if (!GoogleSignIn.hasPermissions(account, sheetsScope)) {
                 Toast.makeText(context, "Requesting Sheets Permission...", Toast.LENGTH_SHORT).show()
-                
-                // Force the permission dialog to appear over the app
                 GoogleSignIn.requestPermissions(
                     context as ComponentActivity,
                     1001,
@@ -96,16 +102,12 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
                 )
             } else {
                 accountName = account?.email ?: "Connected"
-                
-                // Save email to SharedPreferences so it persists across app restarts!
                 context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
                     .edit()
                     .putString("account_email", accountName)
                     .apply()
 
                 Toast.makeText(context, "Connected & Permission Granted! ✅", Toast.LENGTH_SHORT).show()
-                
-                // Safe to sync now!
                 SyncScheduler(context).scheduleSync()
             }
         } catch (e: Exception) {
@@ -119,6 +121,7 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
             .statusBarsPadding()
             .padding(16.dp)
     ) {
+        // Header & Connect Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -126,7 +129,7 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
         ) {
             Column {
                 Text(
-                    text = "EXPENSE HISTORY",
+                    text = "DASHBOARD",
                     color = Color.White,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
@@ -145,7 +148,6 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
             Button(
                 onClick = {
                     val authManager = SheetsAuthManager(context)
-                    // Clear cached session so Google forces the permission screen
                     authManager.signInClient.signOut().addOnCompleteListener {
                         googleAuthLauncher.launch(authManager.signInClient.signInIntent)
                     }
@@ -156,22 +158,87 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
             }
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Donut Chart
+        CategoryDonutChart(
+            expenses = categoryExpenses,
+            selectedMonth = selectedMonth,
+            selectedYear = selectedYear,
+            onMonthChange = { viewModel.updateMonth(it) },
+            onYearChange = { viewModel.updateYear(it) }
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Settings Section: Sheet ID
+        Text(
+            text = "SETTINGS",
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = sheetIdInput,
+            onValueChange = { newId ->
+                sheetIdInput = newId
+                SyncPrefs.setSpreadsheetId(context, newId.trim())
+            },
+            label = { Text("Google Sheet ID", color = Color.Gray, fontSize = 12.sp) },
+            placeholder = { Text("Paste ID here", color = Color.DarkGray) },
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontFamily = FontFamily.Monospace),
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color.White,
+                unfocusedBorderColor = Color.DarkGray,
+                cursorColor = Color.White
+            ),
+            singleLine = true
+        )
+        Text(
+            text = "ID is in your sheet URL: /d/YOUR_ID/edit",
+            color = Color.DarkGray,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // History Section
+        Text(
+            text = "EXPENSE HISTORY",
+            color = Color.Gray,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 1.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
         if (expenses.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillWeight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No expenses logged yet.\nUse the home screen widget!",
+                    text = "No local expenses found.\nUse the 💵 widget!",
                     color = Color.DarkGray,
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.weight(1f)
             ) {
                 items(expenses) { expense ->
                     ExpenseItem(expense)
@@ -180,6 +247,9 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
         }
     }
 }
+
+@Composable
+fun Modifier.fillWeight(weight: Float): Modifier = this.then(Modifier.fillMaxWidth().fillMaxHeight(weight))
 
 @Composable
 fun ExpenseItem(expense: Expense) {
@@ -195,7 +265,7 @@ fun ExpenseItem(expense: Expense) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = expense.category.uppercase(),
                     color = getCategoryColor(expense.colorCode),
@@ -204,10 +274,11 @@ fun ExpenseItem(expense: Expense) {
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
-                    text = expense.description,
+                    text = if (expense.notes.isNotBlank()) expense.notes else expense.description,
                     color = Color.White,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
                 )
                 Text(
                     text = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(expense.timestamp)),
@@ -216,8 +287,8 @@ fun ExpenseItem(expense: Expense) {
                 )
             }
             Text(
-                text = "₹${expense.amount}",
-                color = Color.White,
+                text = "${if (expense.type == "Credit") "+" else "-"}₹${expense.amount}",
+                color = if (expense.type == "Credit") Color(0xFF4CAF50) else Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace
@@ -235,3 +306,74 @@ fun getCategoryColor(colorCode: String): Color {
         else -> Color.White
     }
 }
+
+@Composable
+fun CheckForAppUpdates(context: android.content.Context) {
+    var updateAvailable by remember { mutableStateOf(false) }
+    var latestTag by remember { mutableStateOf("") }
+    var releaseUrl by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val apiUrl = "https://api.github.com/repos/$GITHUB_REPO_USER/$GITHUB_REPO_NAME/releases/latest"
+                val connection = URL(apiUrl).openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+
+                if (connection.responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().use { it.readText() }
+                    val json = JSONObject(response)
+                    val tag = json.getString("tag_name")
+                    val htmlUrl = json.getString("html_url")
+
+                    // Compare version tags
+                    if (tag != CURRENT_VERSION_TAG) {
+                        latestTag = tag
+                        releaseUrl = htmlUrl
+                        updateAvailable = true
+                    }
+                }
+            } catch (e: Exception) {
+                // Fail gracefully if offline or no updates found
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Nothing OS Style Update Popup
+    if (updateAvailable) {
+        AlertDialog(
+            onDismissRequest = { updateAvailable = false },
+            containerColor = Color(0xFF1E1E1E),
+            title = {
+                Text("Update Available! 🚀", color = Color.White, style = MaterialTheme.typography.titleLarge)
+            },
+            text = {
+                Text(
+                    "A new version ($latestTag) is available on GitHub. Update now to get the latest fixes and features!",
+                    color = Color.LightGray
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(releaseUrl))
+                        context.startActivity(intent)
+                        updateAvailable = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                ) {
+                    Text("Download $latestTag", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { updateAvailable = false }) {
+                    Text("Later", color = Color.Gray)
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+}
+

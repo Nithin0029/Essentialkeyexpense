@@ -16,4 +16,9 @@ class ExpenseRepository @Inject constructor(
     suspend fun getUnsyncedExpenses() = expenseDao.getUnsyncedExpenses()
 
     suspend fun markAsSynced(id: Long) = expenseDao.markAsSynced(id)
+
+    fun getExpensesByCategory() = expenseDao.getExpensesByCategory()
+
+    fun getExpensesByCategoryFiltered(month: String, year: String) = 
+        expenseDao.getExpensesByCategoryFiltered(month, year)
 }
