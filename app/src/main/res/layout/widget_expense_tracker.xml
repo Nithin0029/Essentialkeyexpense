@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg_dot_grid"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:gravity="center">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="QUICK EXPENSE"
+        android:textColor="#FFFFFF"
+        android:textSize="11sp"
+        android:letterSpacing="0.1"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <!-- Green Dot (Food) -->
+        <ImageButton
+            android:id="@+id/btn_dot_green"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/dot_green"
+            android:contentDescription="Food Shortcut" />
+
+        <!-- Yellow Dot (Travel) -->
+        <ImageButton
+            android:id="@+id/btn_dot_yellow"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/dot_yellow"
+            android:contentDescription="Travel Shortcut" />
+
+        <!-- Red Dot (Bills) -->
+        <ImageButton
+            android:id="@+id/btn_dot_red"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/dot_red"
+            android:contentDescription="Bills Shortcut" />
+
+        <!-- Blue Dot (Shopping) -->
+        <ImageButton
+            android:id="@+id/btn_dot_blue"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_margin="4dp"
+            android:background="@drawable/dot_blue"
+            android:contentDescription="Shopping Shortcut" />
+    </LinearLayout>
+</LinearLayout>
