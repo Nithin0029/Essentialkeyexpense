@@ -82,19 +82,24 @@ class SyncWorker @AssistedInject constructor(
             ).setApplicationName("Essential Expense Tracker").build()
 
             for (expense in unsyncedExpenses) {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                val formattedDate = dateFormat.format(Date(expense.timestamp))
+
                 val values = listOf(
                     listOf(
-                        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(expense.timestamp)),
-                        expense.amount.toString(),
-                        expense.description,
-                        expense.category,
-                        expense.colorCode
+                        formattedDate,                    // Col A: Date
+                        expense.category,                 // Col B: Category
+                        expense.type,                     // Col C: Type (Debit/Credit)
+                        expense.amount.toString(),        // Col D: Amount
+                        expense.paymentMethod,            // Col E: Payment Method
+                        expense.friendId,                 // Col F: Friend ID
+                        expense.notes                     // Col G: Notes
                     )
                 )
                 val body = ValueRange().setValues(values)
                 
                 Log.d("SyncWorker", "Appending expense to sheet: ${expense.description}")
-                sheetsService.spreadsheets().values().append(spreadsheetId, "Expenses!A1", body)
+                sheetsService.spreadsheets().values().append(spreadsheetId, "Transactions!A2:G", body)
                     .setValueInputOption("USER_ENTERED")
                     .execute()
 

@@ -1,54 +1,185 @@
 package com.nothing.expensetracker.feature.overlay
 
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.data.repository.ExpenseRepository
+import com.nothing.expensetracker.sync.SyncScheduler
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class QuickAddShortcutActivity : ComponentActivity() {
+
+    @Inject lateinit var repository: ExpenseRepository
+    @Inject lateinit var syncScheduler: SyncScheduler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("QuickAddShortcut", "onCreate called")
 
-        val selectedColor = intent.getStringExtra("SELECTED_COLOR") ?: "GREEN"
-        Log.d("QuickAddShortcut", "Selected color: $selectedColor")
+        setContent {
+            var amountText by remember { mutableStateOf("") }
+            var selectedType by remember { mutableStateOf("Debit") }
+            var selectedCategory by remember { mutableStateOf("Food") }
+            var selectedMethod by remember { mutableStateOf("UPI") }
+            var notesText by remember { mutableStateOf("") }
 
-        // Check if "Display over other apps" permission is granted
-        if (!Settings.canDrawOverlays(this)) {
-            Log.d("QuickAddShortcut", "Permission not granted, requesting...")
-            Toast.makeText(this, "Please grant 'Display over other apps' permission", Toast.LENGTH_LONG).show()
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-            finish()
-            return
-        }
+            var catExpanded by remember { mutableStateOf(false) }
+            var methodExpanded by remember { mutableStateOf(false) }
 
-        // Permission granted -> Start OverlayService directly
-        Log.d("QuickAddShortcut", "Permission granted, starting service")
-        val serviceIntent = Intent(this, OverlayService::class.java).apply {
-            putExtra("SELECTED_COLOR", selectedColor)
-        }
-        
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
+            val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
+            val paymentMethods = listOf("UPI", "Cash", "Bank")
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1C)),
+                    shape = RoundedCornerShape(20.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("New Transaction", color = Color.White, style = MaterialTheme.typography.titleMedium)
+
+                        // 1. Amount
+                        OutlinedTextField(
+                            value = amountText,
+                            onValueChange = { amountText = it },
+                            label = { Text("Amount (₹)", color = Color.Gray) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // 2. Type (Debit / Credit)
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            FilterChip(
+                                selected = selectedType == "Debit",
+                                onClick = { selectedType = "Debit" },
+                                label = { Text("Debit (Expense)") }
+                            )
+                            FilterChip(
+                                selected = selectedType == "Credit",
+                                onClick = { selectedType = "Credit" },
+                                label = { Text("Credit (Income)") }
+                            )
+                        }
+
+                        // 3. Category Dropdown
+                        Box {
+                            OutlinedButton(
+                                onClick = { catExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Category: $selectedCategory", color = Color.White)
+                            }
+                            DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat) },
+                                        onClick = { selectedCategory = cat; catExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 4. Payment Method Dropdown
+                        Box {
+                            OutlinedButton(
+                                onClick = { methodExpanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Payment: $selectedMethod", color = Color.White)
+                            }
+                            DropdownMenu(expanded = methodExpanded, onDismissRequest = { methodExpanded = false }) {
+                                paymentMethods.forEach { method ->
+                                    DropdownMenuItem(
+                                        text = { Text(method) },
+                                        onClick = { selectedMethod = method; methodExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 5. Notes
+                        OutlinedTextField(
+                            value = notesText,
+                            onValueChange = { notesText = it },
+                            label = { Text("Notes (Optional)", color = Color.Gray) },
+                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        // Action Buttons
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = { finish() },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel", color = Color.White)
+                            }
+                            Button(
+                                onClick = {
+                                    val amount = amountText.toDoubleOrNull()
+                                    if (amount != null && amount > 0) {
+                                        saveTransaction(amount, selectedCategory, selectedType, selectedMethod, notesText)
+                                        finish()
+                                    } else {
+                                        Toast.makeText(applicationContext, "Enter a valid amount", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                            ) {
+                                Text("Save", color = Color.White)
+                            }
+                        }
+                    }
+                }
             }
-            Log.d("QuickAddShortcut", "Service start command sent")
-        } catch (e: Exception) {
-            Log.e("QuickAddShortcut", "Failed to start service", e)
-            Toast.makeText(this, "Error starting overlay: ${e.message}", Toast.LENGTH_SHORT).show()
         }
+    }
 
-        finish()
+    private fun saveTransaction(amount: Double, category: String, type: String, method: String, notes: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val expense = Expense(
+                amount = amount,
+                description = if (notes.isBlank()) category else notes,
+                category = category,
+                type = type,
+                paymentMethod = method,
+                notes = notes,
+                timestamp = System.currentTimeMillis(),
+                isSynced = false
+            )
+            repository.insertExpense(expense)
+            syncScheduler.scheduleSync()
+        }
     }
 }

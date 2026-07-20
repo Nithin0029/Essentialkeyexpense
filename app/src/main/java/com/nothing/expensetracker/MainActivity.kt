@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         // Paste your Google Sheet ID here (one-time setup)
         SyncPrefs.setSpreadsheetId(
             this, 
-            "12O3ilXnYw_xVsg4KhFJqAX5SuH7wEaODR-OS_W0CBoY"
+            "1H7NDr8exrF78vYv_ww8NR8NVovvu4AqxE8SqkU_mFCI"
         )
 
         enableEdgeToEdge()
@@ -67,7 +67,11 @@ class MainActivity : ComponentActivity() {
 fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
     val expenses by viewModel.expenses.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
-    var accountName by remember { mutableStateOf("Not Connected") }
+    var accountName by remember { 
+        val savedEmail = context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
+            .getString("account_email", null)
+        mutableStateOf(savedEmail ?: GoogleSignIn.getLastSignedInAccount(context)?.email ?: "Not Connected") 
+    }
 
     val googleAuthLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -92,6 +96,13 @@ fun ExpenseTrackerScreen(viewModel: MainViewModel = hiltViewModel()) {
                 )
             } else {
                 accountName = account?.email ?: "Connected"
+                
+                // Save email to SharedPreferences so it persists across app restarts!
+                context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
+                    .edit()
+                    .putString("account_email", accountName)
+                    .apply()
+
                 Toast.makeText(context, "Connected & Permission Granted! ✅", Toast.LENGTH_SHORT).show()
                 
                 // Safe to sync now!
