@@ -49,11 +49,6 @@
             </intent-filter>
         </activity>
 
-        <service
-            android:name=".feature.overlay.OverlayService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse|dataSync" />
-
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

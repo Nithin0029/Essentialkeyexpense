@@ -1,5 +1,6 @@
 package com.nothing.expensetracker.feature.overlay
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
@@ -12,7 +13,8 @@ import android.view.Gravity
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.LifecycleService
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -32,7 +34,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class OverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegistryOwner {
+class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateRegistryOwner, androidx.lifecycle.LifecycleOwner {
 
     @Inject lateinit var repository: ExpenseRepository
     @Inject lateinit var syncScheduler: SyncScheduler
@@ -40,50 +42,58 @@ class OverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegist
     private lateinit var windowManager: WindowManager
     private var composeView: ComposeView? = null
 
+    private val lifecycleRegistry = LifecycleRegistry(this)
     private val _viewModelStore = ViewModelStore()
     private val savedStateRegistryController = SavedStateRegistryController.create(this)
 
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val viewModelStore: ViewModelStore get() = _viewModelStore
+    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+
     companion object {
         private const val CHANNEL_ID = "overlay_service_channel"
-        private const val NOTIFICATION_ID = 1
+        private const val NOTIFICATION_ID = 1001
+        private const val TAG = "OverlayService"
     }
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate")
         savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+        
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
+        startForegroundServiceWithNotification()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
-        startForegroundService()
-        val selectedColor = intent?.getStringExtra("SELECTED_COLOR") ?: "GREEN"
+        Log.d(TAG, "onStartCommand")
+        val selectedColor = intent?.getStringExtra("SELECTED_COLOR") ?: "GENERAL"
         showOverlay(selectedColor)
         return START_NOT_STICKY
     }
 
-    private fun startForegroundService() {
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+    private fun startForegroundServiceWithNotification() {
+        val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Expense Tracker")
-            .setContentText("Overlay is active")
+            .setContentText("Quick Add Overlay is active")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID, 
-                notification, 
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting foreground service", e)
         }
     }
 
@@ -91,15 +101,16 @@ class OverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegist
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Overlay Service Channel",
+                "Quick Add Overlay",
                 NotificationManager.IMPORTANCE_LOW
             )
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+            manager?.createNotificationChannel(channel)
         }
     }
 
     private fun showOverlay(color: String) {
+        Log.d(TAG, "showOverlay: color=$color")
         if (composeView != null) return
 
         val layoutParams = WindowManager.LayoutParams(
@@ -108,62 +119,93 @@ class OverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateRegist
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
+                @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE,
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP
-            y = 40 // Offset from status bar
+            y = 100
         }
 
-        composeView = ComposeView(this).apply {
-            setViewTreeLifecycleOwner(this@OverlayService)
-            setViewTreeViewModelStoreOwner(this@OverlayService)
-            setViewTreeSavedStateRegistryOwner(this@OverlayService)
+        try {
+            composeView = ComposeView(this).apply {
+                Log.d(TAG, "Configuring ComposeView")
+                setViewTreeLifecycleOwner(this@OverlayService)
+                setViewTreeViewModelStoreOwner(this@OverlayService)
+                setViewTreeSavedStateRegistryOwner(this@OverlayService)
 
-            setContent {
-                QuickAddOverlayContent(
-                    initialColor = color,
-                    onSaveExpense = { amount, description, category ->
-                        saveExpenseAndSync(amount, description, category, color)
-                        stopOverlay()
-                    },
-                    onDismiss = { stopOverlay() }
-                )
+                setContent {
+                    QuickAddOverlayContent(
+                        initialColor = color,
+                        onSaveExpense = { amount, description, category, type, paymentMethod, friendId, notes ->
+                            saveExpenseAndSync(amount, description, category, type, paymentMethod, friendId, notes, color)
+                            stopOverlay()
+                        },
+                        onDismiss = { stopOverlay() }
+                    )
+                }
             }
-        }
 
-        windowManager.addView(composeView, layoutParams)
+            Log.d(TAG, "Adding view to WindowManager")
+            windowManager.addView(composeView, layoutParams)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error showing overlay", e)
+            stopSelf()
+        }
     }
 
-    private fun saveExpenseAndSync(amount: Double, description: String, category: String, color: String) {
+    private fun saveExpenseAndSync(
+        amount: Double,
+        description: String,
+        category: String,
+        type: String,
+        paymentMethod: String,
+        friendId: String,
+        notes: String,
+        color: String
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
             val expense = Expense(
                 amount = amount,
                 description = description,
                 category = category,
+                type = type,
+                paymentMethod = paymentMethod,
+                friendId = friendId,
+                notes = notes,
                 colorCode = color,
                 timestamp = System.currentTimeMillis(),
                 isSynced = false
             )
             repository.insertExpense(expense)
-            syncScheduler.scheduleSync() // Enqueue WorkManager background job
+            syncScheduler.scheduleSync()
         }
     }
 
     private fun stopOverlay() {
+        Log.d(TAG, "stopOverlay")
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
         composeView?.let {
-            windowManager.removeView(it)
+            try {
+                windowManager.removeView(it)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error removing view", e)
+            }
             composeView = null
         }
         stopSelf()
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        super.onBind(intent)
-        return null
+    override fun onDestroy() {
+        Log.d(TAG, "onDestroy")
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        _viewModelStore.clear()
+        super.onDestroy()
     }
 
-    override val viewModelStore: ViewModelStore get() = _viewModelStore
-    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+    override fun onBind(intent: Intent?): IBinder? = null
 }

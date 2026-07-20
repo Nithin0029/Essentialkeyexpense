@@ -21,11 +21,8 @@ class ExpenseWidgetProvider : AppWidgetProvider() {
         fun updateAppWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.widget_expense_tracker)
 
-            // Map each dot button to launch the overlay with a pre-selected color category
-            views.setOnClickPendingIntent(R.id.btn_dot_green, createPendingIntent(context, "GREEN"))
-            views.setOnClickPendingIntent(R.id.btn_dot_yellow, createPendingIntent(context, "YELLOW"))
-            views.setOnClickPendingIntent(R.id.btn_dot_red, createPendingIntent(context, "RED"))
-            views.setOnClickPendingIntent(R.id.btn_dot_blue, createPendingIntent(context, "BLUE"))
+            // Single coin launcher button
+            views.setOnClickPendingIntent(R.id.btn_coin_launcher, createPendingIntent(context, "GENERAL"))
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
