@@ -13,6 +13,10 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun insertExpense(expense: Expense) = expenseDao.insertExpense(expense)
 
+    suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense)
+
+    suspend fun deleteExpense(expense: Expense) = expenseDao.deleteExpense(expense)
+
     suspend fun getUnsyncedExpenses() = expenseDao.getUnsyncedExpenses()
 
     suspend fun markAsSynced(id: Long) = expenseDao.markAsSynced(id)

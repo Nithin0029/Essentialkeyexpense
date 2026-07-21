@@ -1,6 +1,7 @@
 package com.nothing.expensetracker.data.local
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -18,6 +19,15 @@ interface ExpenseDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
+
+    @androidx.room.Update
+    suspend fun updateExpense(expense: Expense)
+
+    @Delete
+    suspend fun deleteExpense(expense: Expense)
+
+    @Query("DELETE FROM expenses WHERE id = :expenseId")
+    suspend fun deleteExpenseById(expenseId: Long)
 
     @Query("SELECT * FROM expenses WHERE isSynced = 0")
     suspend fun getUnsyncedExpenses(): List<Expense>

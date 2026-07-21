@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -51,5 +52,17 @@ class MainViewModel @Inject constructor(
 
     fun updateYear(year: String) {
         _selectedYear.value = year
+    }
+
+    fun updateExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.updateExpense(expense)
+        }
+    }
+
+    fun deleteExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.deleteExpense(expense)
+        }
     }
 }
