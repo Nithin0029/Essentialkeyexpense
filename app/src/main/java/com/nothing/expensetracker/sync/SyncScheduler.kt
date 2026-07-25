@@ -9,7 +9,6 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.sheets.v4.Sheets
 import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.api.services.sheets.v4.model.ValueRange
-import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -87,19 +86,23 @@ class SyncWorker @AssistedInject constructor(
 
                 val values = listOf(
                     listOf(
-                        formattedDate,                    // Col A: Date
-                        expense.category,                 // Col B: Category
-                        expense.type,                     // Col C: Type (Debit/Credit)
-                        expense.amount.toString(),        // Col D: Amount
-                        expense.paymentMethod,            // Col E: Payment Method
-                        expense.friendId,                 // Col F: Friend ID
-                        expense.notes                     // Col G: Notes
+                        expense.id.toString(),            // 1. Transaction ID
+                        formattedDate,                    // 2. Date
+                        expense.type,                     // 3. Type
+                        expense.category,                 // 4. Category
+                        expense.amount.toString(),        // 5. Amount
+                        expense.paymentMethod,            // 6. Payment Method
+                        expense.friendId,                 // 7. Friend Name
+                        expense.notes,                    // 8. Notes
+                        expense.timestamp.toString(),     // 9. Created At
+                        expense.timestamp.toString(),     // 10. Updated At
+                        "Synced"                          // 11. Sync Status
                     )
                 )
                 val body = ValueRange().setValues(values)
                 
-                Log.d("SyncWorker", "Appending expense to sheet: ${expense.description}")
-                sheetsService.spreadsheets().values().append(spreadsheetId, "Transactions!A2:G", body)
+                Log.d("SyncWorker", "Appending expense to sheet: ${expense.category}")
+                sheetsService.spreadsheets().values().append(spreadsheetId, "Transactions!A2:K", body)
                     .setValueInputOption("USER_ENTERED")
                     .execute()
 

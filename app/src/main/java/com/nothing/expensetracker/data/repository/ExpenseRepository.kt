@@ -27,6 +27,8 @@ class ExpenseRepository @Inject constructor(
 
     fun getAllCategories() = expenseDao.getAllCategories()
 
+    fun getAllFriends() = expenseDao.getAllFriends()
+
     fun getExpensesByCategory() = expenseDao.getExpensesByCategory()
 
     fun getExpensesByCategoryFiltered(month: String, year: String) = 

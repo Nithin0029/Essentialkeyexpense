@@ -51,6 +51,9 @@ interface ExpenseDao {
     @Query("SELECT DISTINCT category FROM expenses ORDER BY category ASC")
     fun getAllCategories(): Flow<List<String>>
 
+    @Query("SELECT DISTINCT friendId FROM expenses WHERE friendId IS NOT NULL AND friendId != '' ORDER BY friendId ASC")
+    fun getAllFriends(): Flow<List<String>>
+
     @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>
 

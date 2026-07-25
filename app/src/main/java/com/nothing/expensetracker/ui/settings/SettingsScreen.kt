@@ -32,6 +32,7 @@ fun SettingsScreen(
 ) {
     val openingBalance by viewModel.openingBalance.collectAsState()
     val authState by viewModel.authState.collectAsState()
+    val spreadsheetState by viewModel.spreadsheetState.collectAsState()
     var showDialog by remember { mutableStateOf(false) }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -50,7 +51,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
-                modifier = Modifier.padding(16.dp)
+                modifier = Modifier.padding(16.dp),
             )
         }
     ) { paddingValues ->
@@ -59,21 +60,22 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             FinancialSettingsCard(
                 openingBalance = openingBalance,
-                onEditOpeningBalance = { showDialog = true }
+                onEditOpeningBalance = { showDialog = true },
             )
 
             GoogleSyncSettingsCard(
                 authState = authState,
+                spreadsheetState = spreadsheetState,
                 onConnect = {
                     googleSignInLauncher.launch(viewModel.getSignInIntent())
                 },
                 onDisconnect = {
                     viewModel.signOut()
-                }
+                },
             )
         }
     }
@@ -93,6 +95,7 @@ fun SettingsScreen(
 @Composable
 fun GoogleSyncSettingsCard(
     authState: AuthState,
+    spreadsheetState: SpreadsheetState,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -188,7 +191,7 @@ fun GoogleSyncSettingsCard(
                     HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
                     SettingRow(
-                        label = "Status",
+                        label = "Account Status",
                         value = "Connected",
                         action = {
                             IconButton(onClick = onDisconnect) {
@@ -196,6 +199,33 @@ fun GoogleSyncSettingsCard(
                             }
                         }
                     )
+
+                    when (spreadsheetState) {
+                        is SpreadsheetState.Initializing -> {
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("Initializing Cloud Database...", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                            }
+                        }
+                        is SpreadsheetState.Connected -> {
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                            SettingRow(label = "Cloud Database", value = "Connected")
+                            SettingRow(label = "Database Name", value = spreadsheetState.name)
+                        }
+                        is SpreadsheetState.Error -> {
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                            Text(text = spreadsheetState.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Button(onClick = onConnect, shape = RoundedCornerShape(8.dp)) {
+                                Text("Retry")
+                            }
+                        }
+                        else -> {}
+                    }
                 }
 
                 is AuthState.Error -> {
