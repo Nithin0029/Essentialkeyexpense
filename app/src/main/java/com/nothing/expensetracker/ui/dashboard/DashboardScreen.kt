@@ -6,7 +6,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
 import com.nothing.expensetracker.data.local.Expense
 import kotlinx.coroutines.Dispatchers
@@ -36,48 +36,116 @@ const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 
 @Composable
 fun DashboardScreen(viewModel: MainViewModel = hiltViewModel()) {
-    val dashboardData by viewModel.dashboardData.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     
     // 🔍 Check GitHub for app updates silently on launch
     CheckForAppUpdates(context = context)
 
+    when (val state = uiState) {
+        is DashboardUiState.Loading -> {
+            DashboardLoadingState()
+        }
+        is DashboardUiState.Empty -> {
+            DashboardEmptyState()
+        }
+        is DashboardUiState.Success -> {
+            val dashboardData = state.data
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DashboardHeader()
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                CurrentBalanceCard(balance = dashboardData.currentBalance)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                IncomeExpenseCards(income = dashboardData.income, expense = dashboardData.expense)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SummaryCards(
+                    today = dashboardData.todaySpending,
+                    week = dashboardData.weekSpending,
+                    month = dashboardData.monthSpending
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Category Breakdown Card
+                CategoryBreakdownCard(
+                    totalExpense = dashboardData.expense,
+                    topCategories = dashboardData.topCategories
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                RecentTransactionsCard(transactions = dashboardData.recentTransactions)
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardLoadingState() {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        DashboardHeader()
+        // Simple Material 3 Placeholders
+        Box(modifier = Modifier.fillMaxWidth().height(60.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(12.dp)))
+        Box(modifier = Modifier.fillMaxWidth().height(150.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(24.dp)))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(modifier = Modifier.weight(1f).height(100.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(20.dp)))
+            Box(modifier = Modifier.weight(1f).height(100.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(20.dp)))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(modifier = Modifier.weight(1f).height(80.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(16.dp)))
+            Box(modifier = Modifier.weight(1f).height(80.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(16.dp)))
+            Box(modifier = Modifier.weight(1f).height(80.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(16.dp)))
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(250.dp).background(Color.DarkGray.copy(alpha = 0.3f), RoundedCornerShape(24.dp)))
+    }
+}
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        CurrentBalanceCard(balance = dashboardData.currentBalance)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        IncomeExpenseCards(income = dashboardData.income, expense = dashboardData.expense)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        SummaryCards(
-            today = dashboardData.todaySpending,
-            week = dashboardData.weekSpending,
-            month = dashboardData.monthSpending
+@Composable
+fun DashboardEmptyState() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "No Transactions Yet",
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
         )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Category Breakdown Card
-        CategoryBreakdownCard(
-            totalExpense = dashboardData.expense,
-            topCategories = dashboardData.topCategories
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Start tracking your expenses to see your dashboard data.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.Gray,
+            textAlign = TextAlign.Center
         )
-
         Spacer(modifier = Modifier.height(24.dp))
-
-        RecentTransactionsCard(transactions = dashboardData.recentTransactions)
+        Button(
+            onClick = { /* TODO: Open Add Transaction */ },
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text("Add Transaction")
+        }
     }
 }
 
@@ -162,150 +230,6 @@ fun CurrentBalanceCard(balance: Double) {
             )
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun EditExpenseDialog(
-    expense: Expense,
-    onDismiss: () -> Unit,
-    onConfirm: (Expense) -> Unit
-) {
-    var amountText by remember { mutableStateOf(expense.amount.toString()) }
-    var notes by remember { mutableStateOf(expense.notes) }
-    var selectedCategory by remember { mutableStateOf(expense.category) }
-    var transactionType by remember { mutableStateOf(expense.type) }
-    var paymentMethod by remember { mutableStateOf(expense.paymentMethod) }
-
-    val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
-    val paymentMethods = listOf("UPI", "Cash", "Bank")
-
-    var categoryExpanded by remember { mutableStateOf(false) }
-    var paymentExpanded by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1E1E1E),
-        title = { Text("Edit Transaction", color = Color.White) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { amountText = it },
-                    label = { Text("Amount (₹)", color = Color.Gray) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                // Type Toggle
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(
-                        selected = transactionType == "Debit",
-                        onClick = { transactionType = "Debit" },
-                        label = { Text("Debit") }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    FilterChip(
-                        selected = transactionType == "Credit",
-                        onClick = { transactionType = "Credit" },
-                        label = { Text("Credit") }
-                    )
-                }
-
-                // Category
-                ExposedDropdownMenuBox(
-                    expanded = categoryExpanded,
-                    onExpandedChange = { categoryExpanded = !categoryExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = selectedCategory,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Category", color = Color.Gray) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
-                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = categoryExpanded,
-                        onDismissRequest = { categoryExpanded = false }
-                    ) {
-                        categories.forEach { category ->
-                            DropdownMenuItem(
-                                text = { Text(category) },
-                                onClick = {
-                                    selectedCategory = category
-                                    categoryExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                // Payment Method
-                ExposedDropdownMenuBox(
-                    expanded = paymentExpanded,
-                    onExpandedChange = { paymentExpanded = !paymentExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = paymentMethod,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Payment Method", color = Color.Gray) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = paymentExpanded) },
-                        colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = paymentExpanded,
-                        onDismissRequest = { paymentExpanded = false }
-                    ) {
-                        paymentMethods.forEach { method ->
-                            DropdownMenuItem(
-                                text = { Text(method) },
-                                onClick = {
-                                    paymentMethod = method
-                                    paymentExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes", color = Color.Gray) },
-                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val amount = amountText.toDoubleOrNull() ?: expense.amount
-                    onConfirm(expense.copy(
-                        amount = amount,
-                        notes = notes,
-                        category = selectedCategory,
-                        type = transactionType,
-                        paymentMethod = paymentMethod,
-                        isSynced = false // Reset sync status so it syncs the update
-                    ))
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White)
-            ) {
-                Text("Update", color = Color.Black)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.Gray)
-            }
-        },
-        shape = RoundedCornerShape(20.dp)
-    )
 }
 
 @Composable

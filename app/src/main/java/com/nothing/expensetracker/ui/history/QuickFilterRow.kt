@@ -9,10 +9,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun HistoryFilterRow() {
+fun QuickFilterRow() {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Time Filters
-        val timeFilters = listOf("Today", "Week", "Month", "Year", "Custom")
+        // Time Filters: Today, Week, Month, Year
+        val timeFilters = listOf("Today", "Week", "Month", "Year")
         var selectedTimeFilter by remember { mutableStateOf("Month") }
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -36,7 +36,7 @@ fun HistoryFilterRow() {
             }
         }
 
-        // Type Filters
+        // Transaction Type: All, Debit, Credit
         val typeFilters = listOf("All", "Debit", "Credit")
         var selectedTypeFilter by remember { mutableStateOf("All") }
 

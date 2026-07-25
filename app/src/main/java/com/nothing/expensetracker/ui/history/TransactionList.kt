@@ -11,36 +11,42 @@ import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.nothing.expensetracker.data.local.Expense
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
-fun TransactionList() {
-    val sampleTransactions = listOf(
-        Triple("Food", "24 July, 02:30 PM", Triple("UPI", "-₹250", Icons.Default.Fastfood)),
-        Triple("Medical", "23 July, 10:15 AM", Triple("Cash", "-₹700", Icons.Default.LocalHospital)),
-        Triple("Salary", "22 July, 09:00 AM", Triple("Bank", "+₹45,000", Icons.Default.Payments)),
-        Triple("Movies", "21 July, 08:45 PM", Triple("UPI", "-₹400", Icons.Default.LocalMovies)),
-        Triple("Shopping", "20 July, 04:20 PM", Triple("UPI", "-₹1,200", Icons.Default.LocalOffer))
-    )
+fun TransactionList(expenses: List<Expense>) {
+    val dateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        items(sampleTransactions) { (category, date, details) ->
-            val (method, amount, icon) = details
-            val amountColor = if (amount.startsWith("+")) Color(0xFF4CAF50) else Color(0xFFF44336)
-            
+        items(expenses) { expense ->
             TransactionCard(
-                category = category,
-                date = date,
-                method = method,
-                amount = amount,
-                icon = icon,
-                amountColor = amountColor
+                category = expense.category,
+                notes = expense.notes,
+                date = dateFormat.format(Date(expense.timestamp)),
+                method = expense.paymentMethod,
+                type = expense.type,
+                amount = "₹${expense.amount.toInt()}",
+                icon = getCategoryIcon(expense.category)
             )
         }
+    }
+}
+
+private fun getCategoryIcon(category: String): ImageVector {
+    return when (category.lowercase()) {
+        "food" -> Icons.Default.Fastfood
+        "medical" -> Icons.Default.LocalHospital
+        "shopping" -> Icons.Default.LocalOffer
+        "movies", "entertainment" -> Icons.Default.LocalMovies
+        "salary", "income" -> Icons.Default.Payments
+        else -> Icons.Default.Payments
     }
 }

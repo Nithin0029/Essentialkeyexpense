@@ -92,14 +92,14 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val colors = listOf(Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFFFFEB3B), Color(0xFFFF9800), Color(0xFFF44336))
                 topCategories.forEachIndexed { index, category ->
-                    val percentage = if (totalExpense > 0) {
-                        (category.totalAmount / totalExpense * 100).toInt()
-                    } else 0
+                    val ratio = if (totalExpense > 0) (category.totalAmount / totalExpense).toFloat() else 0f
+                    val percentage = (ratio * 100).toInt()
                     
                     CategoryItem(
                         name = category.category,
                         amount = "₹%,.0f".format(Locale.getDefault(), category.totalAmount),
                         percentage = "$percentage%",
+                        progress = ratio,
                         color = colors.getOrElse(index) { Color.Gray }
                     )
                 }
@@ -131,40 +131,52 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
 }
 
 @Composable
-private fun CategoryItem(name: String, amount: String, percentage: String, color: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
-                modifier = Modifier.size(10.dp),
-                shape = CircleShape,
-                color = color
-            ) {}
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = name,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White
-            )
+private fun CategoryItem(name: String, amount: String, percentage: String, progress: Float, color: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    modifier = Modifier.size(8.dp),
+                    shape = CircleShape,
+                    color = color
+                ) {}
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = amount,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = percentage,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    modifier = Modifier.width(35.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
+                )
+            }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = amount,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = percentage,
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.Gray,
-                modifier = Modifier.width(32.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.End
-            )
-        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .padding(start = 20.dp),
+            color = color,
+            trackColor = Color.DarkGray.copy(alpha = 0.2f),
+            strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
     }
 }

@@ -24,8 +24,15 @@ data class DashboardData(
     val weekSpending: Double = 0.0,
     val monthSpending: Double = 0.0,
     val topCategories: List<CategoryExpense> = emptyList(),
-    val recentTransactions: List<Expense> = emptyList()
+    val recentTransactions: List<Expense> = emptyList(),
+    val hasTransactions: Boolean = false
 )
+
+sealed class DashboardUiState {
+    object Loading : DashboardUiState()
+    data class Success(val data: DashboardData) : DashboardUiState()
+    object Empty : DashboardUiState()
+}
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -47,88 +54,75 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val dashboardData: StateFlow<DashboardData> = combine(
+    val uiState: StateFlow<DashboardUiState> = combine(
         repository.getAllExpenses(),
         repository.getTotalUpiBankCredits(),
         repository.getTotalUpiBankDebits()
     ) { allExpenses, credits, debits ->
+        if (allExpenses.isEmpty()) {
+            return@combine DashboardUiState.Empty
+        }
+
         val now = LocalDate.now()
         val zoneId = ZoneId.systemDefault()
 
         // 1. Current Balance
-        // Formula: Opening Balance + (UPI Credits + Bank Credits) - (UPI Debits + Bank Debits)
-        // Ignore Cash. Optimized: Using aggregate SUM queries.
         val currentBalance = OPENING_BALANCE + (credits ?: 0.0) - (debits ?: 0.0)
 
-        // 2. Income: All Credits (UPI + Bank + Cash)
+        // 2. Income
         val income = allExpenses.filter { it.type == "Credit" }.sumOf { it.amount }
 
-        // 3. Expense: All Debits (UPI + Bank + Cash)
+        // 3. Expense
         val expenseTotal = allExpenses.filter { it.type == "Debit" }.sumOf { it.amount }
 
-        // 4. Today: Today's Debit total
+        // 4. Today
         val todaySpending = allExpenses.filter {
             it.type == "Debit" && 
             Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate().isEqual(now)
         }.sumOf { it.amount }
 
-        // 5. Week: Current week's Debit total (starting Monday)
+        // 5. Week
         val startOfWeek = now.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
         val weekSpending = allExpenses.filter {
             val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
             it.type == "Debit" && (date.isEqual(startOfWeek) || date.isAfter(startOfWeek)) && (date.isEqual(now) || date.isBefore(now))
         }.sumOf { it.amount }
 
-        // 6. Month: Current month's Debit total
+        // 6. Month
         val startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
         val monthSpending = allExpenses.filter {
             val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
             it.type == "Debit" && (date.isEqual(startOfMonth) || date.isAfter(startOfMonth)) && (date.isEqual(now) || date.isBefore(now))
         }.sumOf { it.amount }
 
-        // 7. Category Breakdown: Group by Category, sum Debit, sort descending, top five.
+        // 7. Category Breakdown
         val topCategories = allExpenses.filter { it.type == "Debit" }
             .groupBy { it.category }
             .map { (category, expenses) -> CategoryExpense(category, expenses.sumOf { it.amount }) }
             .sortedByDescending { it.totalAmount }
             .take(5)
 
-        // 8. Recent Transactions: Latest five, date descending.
+        // 8. Recent Transactions
         val recentTransactions = allExpenses.take(5)
 
-        DashboardData(
-            currentBalance = currentBalance,
-            income = income,
-            expense = expenseTotal,
-            todaySpending = todaySpending,
-            weekSpending = weekSpending,
-            monthSpending = monthSpending,
-            topCategories = topCategories,
-            recentTransactions = recentTransactions
+        DashboardUiState.Success(
+            DashboardData(
+                currentBalance = currentBalance,
+                income = income,
+                expense = expenseTotal,
+                todaySpending = todaySpending,
+                weekSpending = weekSpending,
+                monthSpending = monthSpending,
+                topCategories = topCategories,
+                recentTransactions = recentTransactions,
+                hasTransactions = true
+            )
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = DashboardData()
+        initialValue = DashboardUiState.Loading
     )
-
-    val categoryExpenses: StateFlow<List<CategoryExpense>> = combine(_selectedMonth, _selectedYear) { month, year ->
-        month to year
-    }.flatMapLatest { (month, year) ->
-        repository.getExpensesByCategoryFiltered(month, year)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
-
-    fun updateMonth(month: String) {
-        _selectedMonth.value = month
-    }
-
-    fun updateYear(year: String) {
-        _selectedYear.value = year
-    }
 
     fun updateExpense(expense: Expense) {
         viewModelScope.launch {

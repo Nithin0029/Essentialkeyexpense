@@ -76,6 +76,7 @@ fun RecentTransactionsCard(transactions: List<Expense>) {
                         category = expense.category,
                         date = dateFormat.format(Date(expense.timestamp)),
                         method = expense.paymentMethod,
+                        notes = expense.notes,
                         amount = "${if (expense.type == "Credit") "+" else "-"}₹${expense.amount.toInt()}",
                         icon = getCategoryIcon(expense.category),
                         amountColor = if (expense.type == "Credit") Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -109,6 +110,7 @@ private fun TransactionRow(
     category: String,
     date: String,
     method: String,
+    notes: String,
     amount: String,
     icon: ImageVector,
     amountColor: Color
@@ -140,6 +142,14 @@ private fun TransactionRow(
                     fontWeight = FontWeight.Medium,
                     color = Color.White
                 )
+                if (notes.isNotBlank()) {
+                    Text(
+                        text = notes,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.LightGray,
+                        maxLines = 1
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = date,

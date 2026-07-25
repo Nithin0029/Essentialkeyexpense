@@ -4,8 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Fastfood
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,12 +16,15 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun TransactionCard(
     category: String,
+    notes: String,
     date: String,
     method: String,
+    type: String, // "Debit" or "Credit"
     amount: String,
-    icon: ImageVector,
-    amountColor: Color
+    icon: ImageVector
 ) {
+    val amountColor = if (type == "Credit") Color(0xFF4CAF50) else Color(0xFFF44336)
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -39,7 +40,7 @@ fun TransactionCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -61,11 +62,19 @@ fun TransactionCard(
                         fontWeight = FontWeight.Medium,
                         color = Color.White
                     )
+                    if (notes.isNotBlank()) {
+                        Text(
+                            text = notes,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            maxLines = 1
+                        )
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = date,
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
+                            color = Color.DarkGray
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
@@ -82,12 +91,27 @@ fun TransactionCard(
                     }
                 }
             }
-            Text(
-                text = amount,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                color = amountColor
-            )
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = amountColor.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = type,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = amountColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = amount,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }

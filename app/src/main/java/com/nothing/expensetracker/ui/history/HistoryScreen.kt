@@ -2,15 +2,18 @@ package com.nothing.expensetracker.ui.history
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
-fun HistoryScreen() {
+fun HistoryScreen(viewModel: HistoryViewModel = hiltViewModel()) {
+    val expenses by viewModel.expenses.collectAsState()
+
     Scaffold(
-        containerColor = Color.Black
+        containerColor = Color.Black,
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -21,12 +24,14 @@ fun HistoryScreen() {
         ) {
             HistoryHeader()
             HistorySearchBar()
-            HistoryFilterRow()
-            HistoryStatistics()
+            QuickFilterRow()
             
-            // For now, we always show the list as it's UI only with placeholder data
-            Box(modifier = Modifier.weight(1f)) {
-                TransactionList()
+            if (expenses.isEmpty()) {
+                EmptyHistory()
+            } else {
+                Box(modifier = Modifier.weight(1f)) {
+                    TransactionList(expenses = expenses)
+                }
             }
         }
     }
