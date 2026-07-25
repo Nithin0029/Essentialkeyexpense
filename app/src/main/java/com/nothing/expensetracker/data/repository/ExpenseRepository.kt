@@ -11,6 +11,10 @@ class ExpenseRepository @Inject constructor(
 ) {
     fun getAllExpenses() = expenseDao.getAllExpenses()
 
+    fun searchExpenses(query: String) = expenseDao.searchExpenses(query)
+
+    fun getExpenseById(id: Long) = expenseDao.getExpenseById(id)
+
     suspend fun insertExpense(expense: Expense) = expenseDao.insertExpense(expense)
 
     suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense)
@@ -21,8 +25,16 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun markAsSynced(id: Long) = expenseDao.markAsSynced(id)
 
+    fun getAllCategories() = expenseDao.getAllCategories()
+
+    fun getAllFriends() = expenseDao.getAllFriends()
+
     fun getExpensesByCategory() = expenseDao.getExpensesByCategory()
 
     fun getExpensesByCategoryFiltered(month: String, year: String) = 
         expenseDao.getExpensesByCategoryFiltered(month, year)
+
+    fun getTotalUpiBankCredits() = expenseDao.getTotalUpiBankCredits()
+
+    fun getTotalUpiBankDebits() = expenseDao.getTotalUpiBankDebits()
 }

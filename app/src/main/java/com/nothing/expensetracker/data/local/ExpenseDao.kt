@@ -17,6 +17,19 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
+    @Query("""
+        SELECT * FROM expenses 
+        WHERE category LIKE '%' || :query || '%' 
+        OR notes LIKE '%' || :query || '%' 
+        OR friendId LIKE '%' || :query || '%' 
+        OR paymentMethod LIKE '%' || :query || '%'
+        ORDER BY timestamp DESC
+    """)
+    fun searchExpenses(query: String): Flow<List<Expense>>
+
+    @Query("SELECT * FROM expenses WHERE id = :id")
+    fun getExpenseById(id: Long): Flow<Expense?>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
 
@@ -35,6 +48,12 @@ interface ExpenseDao {
     @Query("UPDATE expenses SET isSynced = 1 WHERE id = :id")
     suspend fun markAsSynced(id: Long)
 
+    @Query("SELECT DISTINCT category FROM expenses ORDER BY category ASC")
+    fun getAllCategories(): Flow<List<String>>
+
+    @Query("SELECT DISTINCT friendId FROM expenses WHERE friendId IS NOT NULL AND friendId != '' ORDER BY friendId ASC")
+    fun getAllFriends(): Flow<List<String>>
+
     @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>
 
@@ -48,4 +67,10 @@ interface ExpenseDao {
         ORDER BY totalAmount DESC
     """)
     fun getExpensesByCategoryFiltered(month: String, year: String): Flow<List<CategoryExpense>>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Credit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    fun getTotalUpiBankCredits(): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    fun getTotalUpiBankDebits(): Flow<Double?>
 }

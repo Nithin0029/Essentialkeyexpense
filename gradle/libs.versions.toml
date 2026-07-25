@@ -18,8 +18,10 @@ googleSheets = "v4-rev20260610-2.0.0"
 hiltNavigationCompose = "1.4.0"
 hiltWork = "1.2.0"
 androidxHiltCompiler = "1.2.0"
+coil = "2.7.0"
 
 [libraries]
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

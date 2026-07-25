@@ -2,25 +2,44 @@ package com.nothing.expensetracker.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nothing.expensetracker.data.local.AppPrefs
 import com.nothing.expensetracker.data.local.CategoryExpense
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.TemporalAdjusters
+import java.util.*
 import javax.inject.Inject
+
+data class DashboardData(
+    val currentBalance: Double = 0.0,
+    val openingBalance: Double = 0.0,
+    val income: Double = 0.0,
+    val expense: Double = 0.0,
+    val todaySpending: Double = 0.0,
+    val weekSpending: Double = 0.0,
+    val monthSpending: Double = 0.0,
+    val topCategories: List<CategoryExpense> = emptyList(),
+    val recentTransactions: List<Expense> = emptyList(),
+    val hasTransactions: Boolean = false
+)
+
+sealed class DashboardUiState {
+    object Loading : DashboardUiState()
+    data class Success(val data: DashboardData) : DashboardUiState()
+    object Empty : DashboardUiState()
+}
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val appPrefs: AppPrefs
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SimpleDateFormat("MM", Locale.getDefault()).format(Date()))
@@ -36,23 +55,77 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val categoryExpenses: StateFlow<List<CategoryExpense>> = combine(_selectedMonth, _selectedYear) { month, year ->
-        month to year
-    }.flatMapLatest { (month, year) ->
-        repository.getExpensesByCategoryFiltered(month, year)
+    val uiState: StateFlow<DashboardUiState> = combine(
+        repository.getAllExpenses(),
+        repository.getTotalUpiBankCredits(),
+        repository.getTotalUpiBankDebits(),
+        appPrefs.openingBalance
+    ) { allExpenses, credits, debits, openingBalance ->
+        if (allExpenses.isEmpty()) {
+            return@combine DashboardUiState.Empty
+        }
+
+        val now = LocalDate.now()
+        val zoneId = ZoneId.systemDefault()
+
+        // 1. Current Balance
+        val currentBalance = openingBalance + (credits ?: 0.0) - (debits ?: 0.0)
+
+        // 2. Income
+        val income = allExpenses.filter { it.type == "Credit" }.sumOf { it.amount }
+
+        // 3. Expense
+        val expenseTotal = allExpenses.filter { it.type == "Debit" }.sumOf { it.amount }
+
+        // 4. Today
+        val todaySpending = allExpenses.filter {
+            it.type == "Debit" && 
+            Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate().isEqual(now)
+        }.sumOf { it.amount }
+
+        // 5. Week
+        val startOfWeek = now.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+        val weekSpending = allExpenses.filter {
+            val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
+            it.type == "Debit" && (date.isEqual(startOfWeek) || date.isAfter(startOfWeek)) && (date.isEqual(now) || date.isBefore(now))
+        }.sumOf { it.amount }
+
+        // 6. Month
+        val startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
+        val monthSpending = allExpenses.filter {
+            val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
+            it.type == "Debit" && (date.isEqual(startOfMonth) || date.isAfter(startOfMonth)) && (date.isEqual(now) || date.isBefore(now))
+        }.sumOf { it.amount }
+
+        // 7. Category Breakdown
+        val topCategories = allExpenses.filter { it.type == "Debit" }
+            .groupBy { it.category }
+            .map { (category, expenses) -> CategoryExpense(category, expenses.sumOf { it.amount }) }
+            .sortedByDescending { it.totalAmount }
+            .take(5)
+
+        // 8. Recent Transactions
+        val recentTransactions = allExpenses.take(5)
+
+        DashboardUiState.Success(
+            DashboardData(
+                currentBalance = currentBalance,
+                openingBalance = openingBalance,
+                income = income,
+                expense = expenseTotal,
+                todaySpending = todaySpending,
+                weekSpending = weekSpending,
+                monthSpending = monthSpending,
+                topCategories = topCategories,
+                recentTransactions = recentTransactions,
+                hasTransactions = true
+            )
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        initialValue = DashboardUiState.Loading
     )
-
-    fun updateMonth(month: String) {
-        _selectedMonth.value = month
-    }
-
-    fun updateYear(year: String) {
-        _selectedYear.value = year
-    }
 
     fun updateExpense(expense: Expense) {
         viewModelScope.launch {
