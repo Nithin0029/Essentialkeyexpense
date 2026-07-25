@@ -21,7 +21,8 @@ fun TransactionCard(
     method: String,
     type: String, // "Debit" or "Credit"
     amount: String,
-    icon: ImageVector
+    icon: ImageVector,
+    onClick: () -> Unit
 ) {
     val amountColor = if (type == "Credit") Color(0xFF4CAF50) else Color(0xFFF44336)
     
@@ -31,7 +32,8 @@ fun TransactionCard(
         colors = CardDefaults.cardColors(
             containerColor = Color(0xFF1A1A1A),
             contentColor = Color.White
-        )
+        ),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier

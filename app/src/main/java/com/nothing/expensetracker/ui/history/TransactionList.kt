@@ -18,7 +18,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun TransactionList(expenses: List<Expense>) {
+fun TransactionList(
+    expenses: List<Expense>,
+    onExpenseClick: (Expense) -> Unit
+) {
     val dateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
 
     LazyColumn(
@@ -34,7 +37,8 @@ fun TransactionList(expenses: List<Expense>) {
                 method = expense.paymentMethod,
                 type = expense.type,
                 amount = "₹${expense.amount.toInt()}",
-                icon = getCategoryIcon(expense.category)
+                icon = getCategoryIcon(expense.category),
+                onClick = { onExpenseClick(expense) }
             )
         }
     }

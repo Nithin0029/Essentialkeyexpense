@@ -11,6 +11,8 @@ class ExpenseRepository @Inject constructor(
 ) {
     fun getAllExpenses() = expenseDao.getAllExpenses()
 
+    fun getExpenseById(id: Long) = expenseDao.getExpenseById(id)
+
     suspend fun insertExpense(expense: Expense) = expenseDao.insertExpense(expense)
 
     suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense)
