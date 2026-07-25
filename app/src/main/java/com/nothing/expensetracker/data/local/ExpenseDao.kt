@@ -48,4 +48,10 @@ interface ExpenseDao {
         ORDER BY totalAmount DESC
     """)
     fun getExpensesByCategoryFiltered(month: String, year: String): Flow<List<CategoryExpense>>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Credit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    fun getTotalUpiBankCredits(): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    fun getTotalUpiBankDebits(): Flow<Double?>
 }

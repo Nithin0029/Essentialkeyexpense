@@ -47,22 +47,18 @@ class MainViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
-    val dashboardData: StateFlow<DashboardData> = repository.getAllExpenses().map { allExpenses ->
+    val dashboardData: StateFlow<DashboardData> = combine(
+        repository.getAllExpenses(),
+        repository.getTotalUpiBankCredits(),
+        repository.getTotalUpiBankDebits()
+    ) { allExpenses, credits, debits ->
         val now = LocalDate.now()
         val zoneId = ZoneId.systemDefault()
 
         // 1. Current Balance
         // Formula: Opening Balance + (UPI Credits + Bank Credits) - (UPI Debits + Bank Debits)
-        // Ignore Cash.
-        val upiBankCredits = allExpenses.filter { 
-            it.type == "Credit" && (it.paymentMethod == "UPI" || it.paymentMethod == "Bank") 
-        }.sumOf { it.amount }
-        
-        val upiBankDebits = allExpenses.filter { 
-            it.type == "Debit" && (it.paymentMethod == "UPI" || it.paymentMethod == "Bank") 
-        }.sumOf { it.amount }
-        
-        val currentBalance = OPENING_BALANCE + upiBankCredits - upiBankDebits
+        // Ignore Cash. Optimized: Using aggregate SUM queries.
+        val currentBalance = OPENING_BALANCE + (credits ?: 0.0) - (debits ?: 0.0)
 
         // 2. Income: All Credits (UPI + Bank + Cash)
         val income = allExpenses.filter { it.type == "Credit" }.sumOf { it.amount }

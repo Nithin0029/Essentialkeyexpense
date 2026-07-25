@@ -25,4 +25,8 @@ class ExpenseRepository @Inject constructor(
 
     fun getExpensesByCategoryFiltered(month: String, year: String) = 
         expenseDao.getExpensesByCategoryFiltered(month, year)
+
+    fun getTotalUpiBankCredits() = expenseDao.getTotalUpiBankCredits()
+
+    fun getTotalUpiBankDebits() = expenseDao.getTotalUpiBankDebits()
 }
