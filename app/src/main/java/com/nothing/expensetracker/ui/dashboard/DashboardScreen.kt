@@ -1,16 +1,12 @@
 package com.nothing.expensetracker.ui.dashboard
 
-import android.widget.Toast
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,14 +19,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
-import com.nothing.expensetracker.data.local.Expense
-import com.nothing.expensetracker.sync.SheetsAuthManager
-import com.nothing.expensetracker.sync.SyncPrefs
-import com.nothing.expensetracker.sync.SyncScheduler
 import com.nothing.expensetracker.ui.MainViewModel
-import com.nothing.expensetracker.ui.components.CategoryDonutChart
+import com.nothing.expensetracker.data.local.Expense
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -46,308 +36,130 @@ const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 
 @Composable
 fun DashboardScreen(viewModel: MainViewModel = hiltViewModel()) {
-    val expenses by viewModel.expenses.collectAsState()
-    val categoryExpenses by viewModel.categoryExpenses.collectAsState()
-    val selectedMonth by viewModel.selectedMonth.collectAsState()
-    val selectedYear by viewModel.selectedYear.collectAsState()
+    val dashboardData by viewModel.dashboardData.collectAsState()
     val context = LocalContext.current
-    
-    var itemToDelete by remember { mutableStateOf<Expense?>(null) }
-    var itemToEdit by remember { mutableStateOf<Expense?>(null) }
     
     // 🔍 Check GitHub for app updates silently on launch
     CheckForAppUpdates(context = context)
-
-    var sheetIdInput by remember {
-        mutableStateOf(SyncPrefs.getSpreadsheetId(context))
-    }
-
-    var accountName by remember { 
-        val savedEmail = context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
-            .getString("account_email", null)
-        mutableStateOf(savedEmail ?: GoogleSignIn.getLastSignedInAccount(context)?.email ?: "Not Connected") 
-    }
-
-    val googleAuthLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)
-            val sheetsScope = com.google.android.gms.common.api.Scope(com.google.api.services.sheets.v4.SheetsScopes.SPREADSHEETS)
-
-            if (!GoogleSignIn.hasPermissions(account, sheetsScope)) {
-                Toast.makeText(context, "Requesting Sheets Permission...", Toast.LENGTH_SHORT).show()
-                GoogleSignIn.requestPermissions(
-                    context as ComponentActivity,
-                    1001,
-                    account,
-                    sheetsScope
-                )
-            } else {
-                accountName = account?.email ?: "Connected"
-                context.getSharedPreferences("sync_prefs", android.content.Context.MODE_PRIVATE)
-                    .edit()
-                    .putString("account_email", accountName)
-                    .apply()
-
-                Toast.makeText(context, "Connected & Permission Granted! ✅", Toast.LENGTH_SHORT).show()
-                SyncScheduler(context).scheduleSync()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(context, "Sign-in error: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-        }
-    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
             .padding(16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
-        // Header & Connect Button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "DASHBOARD",
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.padding(top = 16.dp)
-                )
-                Text(
-                    text = accountName,
-                    color = Color.Gray,
-                    fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
+        DashboardHeader()
 
-            Button(
-                onClick = {
-                    val authManager = SheetsAuthManager(context)
-                    authManager.signInClient.signOut().addOnCompleteListener {
-                        googleAuthLauncher.launch(authManager.signInClient.signInIntent)
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4))
-            ) {
-                Text("Connect 📊", color = Color.White, fontSize = 10.sp)
-            }
-        }
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(24.dp))
+        CurrentBalanceCard(balance = dashboardData.currentBalance)
 
-        // Donut Chart
-        CategoryDonutChart(
-            expenses = categoryExpenses,
-            selectedMonth = selectedMonth,
-            selectedYear = selectedYear,
-            onMonthChange = { viewModel.updateMonth(it) },
-            onYearChange = { viewModel.updateYear(it) }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        IncomeExpenseCards(income = dashboardData.income, expense = dashboardData.expense)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SummaryCards(
+            today = dashboardData.todaySpending,
+            week = dashboardData.weekSpending,
+            month = dashboardData.monthSpending
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Settings Section: Sheet ID
-        Text(
-            text = "SETTINGS",
-            color = Color.Gray,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
+        // Category Breakdown Card
+        CategoryBreakdownCard(
+            totalExpense = dashboardData.expense,
+            topCategories = dashboardData.topCategories
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        OutlinedTextField(
-            value = sheetIdInput,
-            onValueChange = { newId ->
-                sheetIdInput = newId
-                SyncPrefs.setSpreadsheetId(context, newId.trim())
-            },
-            label = { Text("Google Sheet ID", color = Color.Gray, fontSize = 12.sp) },
-            placeholder = { Text("Paste ID here", color = Color.DarkGray) },
-            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color.White, fontFamily = FontFamily.Monospace),
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Color.White,
-                unfocusedBorderColor = Color.DarkGray,
-                cursorColor = Color.White
-            ),
-            singleLine = true
-        )
-        Text(
-            text = "ID is in your sheet URL: /d/YOUR_ID/edit",
-            color = Color.DarkGray,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // History Section
-        Text(
-            text = "EXPENSE HISTORY",
-            color = Color.Gray,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (expenses.isEmpty()) {
-            Box(
-                modifier = Modifier.fillWeight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No local expenses found.\nUse the 💵 widget!",
-                    color = Color.DarkGray,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(expenses) { expense ->
-                    ExpenseItem(
-                        expense = expense,
-                        onEditClick = { itemToEdit = expense },
-                        onDeleteClick = { itemToDelete = expense }
-                    )
-                }
-            }
-        }
-    }
-
-    // Edit Transaction Dialog
-    itemToEdit?.let { expense ->
-        EditExpenseDialog(
-            expense = expense,
-            onDismiss = { itemToEdit = null },
-            onConfirm = { updatedExpense ->
-                viewModel.updateExpense(updatedExpense)
-                itemToEdit = null
-            }
-        )
-    }
-
-    // Confirmation Popup Dialog
-    itemToDelete?.let { expense ->
-        AlertDialog(
-            onDismissRequest = { itemToDelete = null },
-            containerColor = Color(0xFF1E1E1E),
-            title = {
-                Text("Delete Transaction?", color = Color.White, style = MaterialTheme.typography.titleMedium)
-            },
-            text = {
-                Text(
-                    "Are you sure you want to delete this transaction for ₹${expense.amount}?",
-                    color = Color.LightGray
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.deleteExpense(expense)
-                        itemToDelete = null
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
-                ) {
-                    Text("Delete", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { itemToDelete = null }) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            },
-            shape = RoundedCornerShape(20.dp)
-        )
+        RecentTransactionsCard(transactions = dashboardData.recentTransactions)
     }
 }
 
 @Composable
-fun Modifier.fillWeight(weight: Float): Modifier = this.then(Modifier.fillMaxWidth().fillMaxHeight(weight))
+fun DashboardHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = "Dashboard",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date()),
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+        }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF1E1E1E),
+            modifier = Modifier.padding(4.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(Color.Green, CircleShape)
+                )
+                Text(
+                    text = "Synced",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
 
 @Composable
-fun ExpenseItem(expense: Expense, onEditClick: () -> Unit, onDeleteClick: () -> Unit) {
+fun CurrentBalanceCard(balance: Double) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier.padding(24.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = expense.category.uppercase(),
-                    color = getCategoryColor(expense.colorCode),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                Text(
-                    text = if (expense.notes.isNotBlank()) expense.notes else expense.description,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1
-                )
-                Text(
-                    text = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(expense.timestamp)),
-                    color = Color.Gray,
-                    fontSize = 12.sp
-                )
-            }
-            
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "${if (expense.type == "Credit") "+" else "-"}₹${expense.amount}",
-                    color = if (expense.type == "Credit") Color(0xFF4CAF50) else Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-                
-                IconButton(onClick = onEditClick) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = Color.DarkGray,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color.DarkGray,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            Text(
+                text = "Current Balance",
+                style = MaterialTheme.typography.titleMedium,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "₹%,.0f".format(Locale.getDefault(), balance),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Opening Balance: ₹15,000",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.DarkGray
+            )
         }
     }
 }
@@ -494,16 +306,6 @@ fun EditExpenseDialog(
         },
         shape = RoundedCornerShape(20.dp)
     )
-}
-
-fun getCategoryColor(colorCode: String): Color {
-    return when (colorCode.uppercase()) {
-        "GREEN" -> Color(0xFF4CAF50)
-        "YELLOW" -> Color(0xFFFFEB3B)
-        "RED" -> Color(0xFFF44336)
-        "BLUE" -> Color(0xFF2196F3)
-        else -> Color.White
-    }
 }
 
 @Composable
