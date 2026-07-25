@@ -2,6 +2,7 @@ package com.nothing.expensetracker.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nothing.expensetracker.data.local.AppPrefs
 import com.nothing.expensetracker.data.local.CategoryExpense
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
@@ -18,6 +19,7 @@ import javax.inject.Inject
 
 data class DashboardData(
     val currentBalance: Double = 0.0,
+    val openingBalance: Double = 0.0,
     val income: Double = 0.0,
     val expense: Double = 0.0,
     val todaySpending: Double = 0.0,
@@ -36,10 +38,9 @@ sealed class DashboardUiState {
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val appPrefs: AppPrefs
 ) : ViewModel() {
-
-    private val OPENING_BALANCE = 15000.0
 
     private val _selectedMonth = MutableStateFlow(SimpleDateFormat("MM", Locale.getDefault()).format(Date()))
     val selectedMonth: StateFlow<String> = _selectedMonth
@@ -57,8 +58,9 @@ class MainViewModel @Inject constructor(
     val uiState: StateFlow<DashboardUiState> = combine(
         repository.getAllExpenses(),
         repository.getTotalUpiBankCredits(),
-        repository.getTotalUpiBankDebits()
-    ) { allExpenses, credits, debits ->
+        repository.getTotalUpiBankDebits(),
+        appPrefs.openingBalance
+    ) { allExpenses, credits, debits, openingBalance ->
         if (allExpenses.isEmpty()) {
             return@combine DashboardUiState.Empty
         }
@@ -67,7 +69,7 @@ class MainViewModel @Inject constructor(
         val zoneId = ZoneId.systemDefault()
 
         // 1. Current Balance
-        val currentBalance = OPENING_BALANCE + (credits ?: 0.0) - (debits ?: 0.0)
+        val currentBalance = openingBalance + (credits ?: 0.0) - (debits ?: 0.0)
 
         // 2. Income
         val income = allExpenses.filter { it.type == "Credit" }.sumOf { it.amount }
@@ -108,6 +110,7 @@ class MainViewModel @Inject constructor(
         DashboardUiState.Success(
             DashboardData(
                 currentBalance = currentBalance,
+                openingBalance = openingBalance,
                 income = income,
                 expense = expenseTotal,
                 todaySpending = todaySpending,

@@ -62,7 +62,10 @@ fun DashboardScreen(viewModel: MainViewModel = hiltViewModel()) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                CurrentBalanceCard(balance = dashboardData.currentBalance)
+                CurrentBalanceCard(
+                    balance = dashboardData.currentBalance,
+                    openingBalance = dashboardData.openingBalance
+                )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -198,7 +201,7 @@ fun DashboardHeader() {
 }
 
 @Composable
-fun CurrentBalanceCard(balance: Double) {
+fun CurrentBalanceCard(balance: Double, openingBalance: Double) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -224,7 +227,7 @@ fun CurrentBalanceCard(balance: Double) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Opening Balance: ₹15,000",
+                text = "Opening Balance: ₹%,.0f".format(Locale.getDefault(), openingBalance),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.DarkGray
             )
