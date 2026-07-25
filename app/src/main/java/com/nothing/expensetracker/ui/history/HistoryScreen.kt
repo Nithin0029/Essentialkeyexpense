@@ -15,7 +15,9 @@ fun HistoryScreen(
     onEditTransaction: (Long) -> Unit,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
-    val expenses by viewModel.expenses.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val categories by viewModel.categories.collectAsState()
+
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -34,16 +36,33 @@ fun HistoryScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            HistoryHeader()
-            HistorySearchBar()
-            QuickFilterRow()
+            HistoryHeader(
+                currentSort = uiState.sortOption,
+                onSortChange = { viewModel.updateSortOption(it) }
+            )
             
-            if (expenses.isEmpty()) {
+            HistorySearchBar(
+                query = uiState.searchQuery,
+                onQueryChange = { viewModel.onSearchQueryChange(it) }
+            )
+            
+            QuickFilterRow(
+                filterState = uiState.filterState,
+                categories = categories,
+                onDateFilterChange = { viewModel.updateDateFilter(it) },
+                onTypeFilterChange = { viewModel.updateTypeFilter(it) },
+                onMethodFilterChange = { viewModel.updateMethodFilter(it) },
+                onCategoryFilterChange = { viewModel.updateCategoryFilter(it) }
+            )
+
+            HistoryStatistics(statistics = uiState.statistics)
+            
+            if (uiState.expenses.isEmpty() && !uiState.isLoading) {
                 EmptyHistory()
             } else {
                 Box(modifier = Modifier.weight(1f)) {
                     TransactionList(
-                        expenses = expenses,
+                        expenses = uiState.expenses,
                         onExpenseClick = { expense ->
                             selectedExpense = expense
                             showBottomSheet = true

@@ -11,12 +11,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun HistorySearchBar() {
-    var searchQuery by remember { mutableStateOf("") }
-
+fun HistorySearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit
+) {
     OutlinedTextField(
-        value = searchQuery,
-        onValueChange = { searchQuery = it },
+        value = query,
+        onValueChange = onQueryChange,
         modifier = Modifier.fillMaxWidth(),
         placeholder = { Text("Search transactions...", color = Color.Gray) },
         leadingIcon = {
