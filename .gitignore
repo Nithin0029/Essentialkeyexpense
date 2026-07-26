@@ -30,6 +30,10 @@ cert.der
 # Log files
 *.log
 
+# Build Artifacts
+*.apk
+*.aab
+
 # OS-specific files
 .DS_Store
 .DS_Store?
@@ -52,3 +56,6 @@ app/google-services.json
 # Service Accounts / Keys
 *.json
 !google-services.template.json
+
+# AI Assistant Artifacts
+.artifacts/
