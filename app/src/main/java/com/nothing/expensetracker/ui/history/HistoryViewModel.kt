@@ -165,6 +165,10 @@ class HistoryViewModel @Inject constructor(
         _filterState.update { it.copy(categoryFilter = filter) }
     }
 
+    fun applyFilters(filters: HistoryFilterState) {
+        _filterState.value = filters
+    }
+
     fun deleteExpense(expense: Expense) {
         viewModelScope.launch {
             repository.deleteExpense(expense)

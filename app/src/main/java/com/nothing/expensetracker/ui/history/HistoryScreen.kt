@@ -20,6 +20,7 @@ fun HistoryScreen(
 
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showFilterSheet by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     
     val snackbarHostState = remember { SnackbarHostState() }
@@ -43,18 +44,10 @@ fun HistoryScreen(
             
             HistorySearchBar(
                 query = uiState.searchQuery,
-                onQueryChange = { viewModel.onSearchQueryChange(it) }
+                onQueryChange = { viewModel.onSearchQueryChange(it) },
+                onFilterClick = { showFilterSheet = true }
             )
             
-            QuickFilterRow(
-                filterState = uiState.filterState,
-                categories = categories,
-                onDateFilterChange = { viewModel.updateDateFilter(it) },
-                onTypeFilterChange = { viewModel.updateTypeFilter(it) },
-                onMethodFilterChange = { viewModel.updateMethodFilter(it) },
-                onCategoryFilterChange = { viewModel.updateCategoryFilter(it) }
-            )
-
             HistoryStatistics(statistics = uiState.statistics)
             
             if (uiState.expenses.isEmpty() && !uiState.isLoading) {
@@ -83,6 +76,18 @@ fun HistoryScreen(
             },
             onDelete = {
                 showDeleteDialog = true
+            }
+        )
+    }
+
+    if (showFilterSheet) {
+        HistoryFilterSheet(
+            initialFilterState = uiState.filterState,
+            categories = categories,
+            onDismiss = { showFilterSheet = false },
+            onApply = { newFilters ->
+                viewModel.applyFilters(newFilters)
+                showFilterSheet = false
             }
         )
     }

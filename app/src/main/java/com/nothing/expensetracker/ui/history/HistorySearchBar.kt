@@ -3,6 +3,7 @@ package com.nothing.expensetracker.ui.history
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,7 +14,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun HistorySearchBar(
     query: String,
-    onQueryChange: (String) -> Unit
+    onQueryChange: (String) -> Unit,
+    onFilterClick: () -> Unit
 ) {
     OutlinedTextField(
         value = query,
@@ -26,6 +28,15 @@ fun HistorySearchBar(
                 contentDescription = "Search",
                 tint = Color.Gray
             )
+        },
+        trailingIcon = {
+            IconButton(onClick = onFilterClick) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filter",
+                    tint = Color.White
+                )
+            }
         },
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
