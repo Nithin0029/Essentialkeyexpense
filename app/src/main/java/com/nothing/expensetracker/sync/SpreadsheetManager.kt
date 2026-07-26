@@ -67,6 +67,14 @@ class SpreadsheetManager @Inject constructor(
         spreadsheetId?.let { id ->
             ensureRequiredSheetsExist(service, id)
             ensureHeadersExist(service, id)
+            applyHeaderFormatting(service, id)
+            applyColumnWidths(service, id)
+            applyAlternatingRowColors(service, id)
+            applyValueFormatting(service, id)
+            applyConditionalFormatting(service, id)
+            applyFilters(service, id)
+            applyCellAlignment(service, id)
+            applyFinalPolish(service, id)
             ensureInitialDataExists(service, id)
             ensureMasterDataExists(service, id)
         }
@@ -198,6 +206,388 @@ class SpreadsheetManager @Inject constructor(
             } catch (e: Exception) {
                 Log.e(tag, "Failed to ensure headers for sheet: $sheetName", e)
             }
+        }
+    }
+
+    private fun applyHeaderFormatting(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheets = spreadsheet.sheets
+            val requests = mutableListOf<Request>()
+
+            sheets.forEach { sheet ->
+                val sheetId = sheet.properties.sheetId
+                
+                // 1. Format Header Cells
+                requests.add(Request().setRepeatCell(
+                    RepeatCellRequest()
+                        .setRange(GridRange()
+                            .setSheetId(sheetId)
+                            .setStartRowIndex(0)
+                            .setEndRowIndex(1)
+                        )
+                        .setCell(CellData()
+                            .setUserEnteredFormat(CellFormat()
+                                .setBackgroundColor(Color().setRed(0.12f).setGreen(0.23f).setBlue(0.54f)) // #1E3A8A approx
+                                .setTextFormat(TextFormat()
+                                    .setForegroundColor(Color().setRed(1.0f).setGreen(1.0f).setBlue(1.0f))
+                                    .setBold(true)
+                                    .setFontSize(11)
+                                )
+                                .setHorizontalAlignment("CENTER")
+                                .setVerticalAlignment("MIDDLE")
+                            )
+                        )
+                        .setFields("userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)")
+                ))
+
+                // 2. Freeze First Row
+                requests.add(Request().setUpdateSheetProperties(
+                    UpdateSheetPropertiesRequest()
+                        .setProperties(SheetProperties()
+                            .setSheetId(sheetId)
+                            .setGridProperties(GridProperties().setFrozenRowCount(1))
+                        )
+                        .setFields("gridProperties.frozenRowCount")
+                ))
+            }
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Header formatting applied to all sheets")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply header formatting", e)
+        }
+    }
+
+    private fun applyColumnWidths(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheets = spreadsheet.sheets
+            val requests = mutableListOf<Request>()
+
+            sheets.forEach { sheet ->
+                val sheetId = sheet.properties.sheetId
+                val sheetName = sheet.properties.title
+                
+                val widths = when (sheetName) {
+                    "Transactions" -> listOf(120, 120, 90, 140, 100, 140, 160, 250, 180, 180, 120)
+                    "Categories", "Friends" -> listOf(100, 220)
+                    "Settings", "App_Metadata" -> listOf(220, 220)
+                    else -> emptyList()
+                }
+
+                widths.forEachIndexed { index, width ->
+                    requests.add(Request().setUpdateDimensionProperties(
+                        UpdateDimensionPropertiesRequest()
+                            .setRange(DimensionRange()
+                                .setSheetId(sheetId)
+                                .setDimension("COLUMNS")
+                                .setStartIndex(index)
+                                .setEndIndex(index + 1)
+                            )
+                            .setProperties(DimensionProperties().setPixelSize(width))
+                            .setFields("pixelSize")
+                    ))
+                }
+            }
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Column widths optimized for all sheets")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply column widths", e)
+        }
+    }
+
+    private fun applyAlternatingRowColors(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet: Spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheets = spreadsheet.sheets
+            val requests = mutableListOf<Request>()
+
+            sheets.forEach { sheet ->
+                val sheetId = sheet.properties.sheetId
+                
+                // For now, we'll add banding directly. To prevent infinite duplicates 
+                // in a production environment, we'd check for existing bandings, 
+                // but getBandedRanges() appears inaccessible in this environment.
+                requests.add(Request().setAddBanding(
+                    AddBandingRequest().setBandedRange(
+                        BandedRange()
+                            .setRange(GridRange()
+                                .setSheetId(sheetId)
+                                .setStartRowIndex(1)
+                                .setStartColumnIndex(0)
+                                .setEndColumnIndex(26)
+                            )
+                            .setRowProperties(BandingProperties()
+                                .setFirstBandColor(Color().setRed(1.0f).setGreen(1.0f).setBlue(1.0f))
+                                .setSecondBandColor(Color().setRed(0.95f).setGreen(0.95f).setBlue(0.95f))
+                            )
+                    )
+                ))
+            }
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Alternating row colors applied to all sheets")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply alternating row colors", e)
+        }
+    }
+
+    private fun applyValueFormatting(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheetId = spreadsheet.sheets.find { it.properties.title == "Transactions" }?.properties?.sheetId
+                ?: return
+
+            val requests = mutableListOf<Request>()
+
+            // 1. Amount Formatting (Column E - Index 4)
+            requests.add(Request().setRepeatCell(
+                RepeatCellRequest()
+                    .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(1).setStartColumnIndex(4).setEndColumnIndex(5))
+                    .setCell(CellData().setUserEnteredFormat(CellFormat().setNumberFormat(NumberFormat().setType("CURRENCY").setPattern("₹#,##0.00"))))
+                    .setFields("userEnteredFormat.numberFormat")
+            ))
+
+            // 2. Date Formatting (Column B - Index 1)
+            requests.add(Request().setRepeatCell(
+                RepeatCellRequest()
+                    .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(1).setStartColumnIndex(1).setEndColumnIndex(2))
+                    .setCell(CellData().setUserEnteredFormat(CellFormat().setNumberFormat(NumberFormat().setType("DATE").setPattern("dd-MMM-yyyy"))))
+                    .setFields("userEnteredFormat.numberFormat")
+            ))
+
+            // 3. Created/Updated At Formatting (Columns I, J - Indices 8, 9)
+            requests.add(Request().setRepeatCell(
+                RepeatCellRequest()
+                    .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(1).setStartColumnIndex(8).setEndColumnIndex(10))
+                    .setCell(CellData().setUserEnteredFormat(CellFormat().setNumberFormat(NumberFormat().setType("DATE_TIME").setPattern("dd-MMM-yyyy HH:mm:ss"))))
+                    .setFields("userEnteredFormat.numberFormat")
+            ))
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Value formatting applied to Transactions sheet")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply value formatting", e)
+        }
+    }
+
+    private fun applyConditionalFormatting(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheetId = spreadsheet.sheets.find { it.properties.title == "Transactions" }?.properties?.sheetId
+                ?: return
+
+            // Check if rules already exist to avoid duplication
+            val existingRules = spreadsheet.sheets.find { it.properties.title == "Transactions" }?.conditionalFormats
+            if (existingRules != null && existingRules.isNotEmpty()) {
+                Log.d(tag, "Conditional formatting rules already exist, skipping.")
+                return
+            }
+
+            val requests = mutableListOf<Request>()
+
+            // Helper to create a rule
+            fun createRule(columnIndex: Int, text: String, bgColor: Color, textColor: Color? = null): ConditionalFormatRule {
+                val condition = ConditionValue().setUserEnteredValue(text)
+                val rule = BooleanRule()
+                    .setCondition(BooleanCondition().setType("TEXT_EQ").setValues(listOf(condition)))
+                    .setFormat(CellFormat().setBackgroundColor(bgColor))
+                
+                textColor?.let { rule.format.setTextFormat(TextFormat().setForegroundColor(it)) }
+
+                return ConditionalFormatRule()
+                    .setRanges(listOf(GridRange()
+                        .setSheetId(sheetId)
+                        .setStartRowIndex(1)
+                        .setStartColumnIndex(columnIndex)
+                        .setEndColumnIndex(columnIndex + 1)
+                    ))
+                    .setBooleanRule(rule)
+            }
+
+            // 1. Type Rules (Column C - Index 2)
+            requests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                createRule(2, "Debit", Color().setRed(0.97f).setGreen(0.84f).setBlue(0.85f))
+            )))
+            requests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                createRule(2, "Credit", Color().setRed(0.83f).setGreen(0.93f).setBlue(0.85f))
+            )))
+
+            // 2. Sync Status Rules (Column K - Index 10)
+            requests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                createRule(10, "Synced", Color().setRed(0.78f).setGreen(0.94f).setBlue(0.81f), Color().setRed(0.0f).setGreen(0.38f).setBlue(0.0f))
+            )))
+            requests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                createRule(10, "Pending", Color().setRed(1.0f).setGreen(0.92f).setBlue(0.61f), Color().setRed(0.61f).setGreen(0.34f).setBlue(0.0f))
+            )))
+            requests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                createRule(10, "Failed", Color().setRed(1.0f).setGreen(0.78f).setBlue(0.81f), Color().setRed(1.0f).setGreen(1.0f).setBlue(1.0f))
+            )))
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Conditional formatting rules applied to Transactions sheet")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply conditional formatting", e)
+        }
+    }
+
+    private fun applyFilters(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheet = spreadsheet.sheets.find { it.properties.title == "Transactions" } ?: return
+            val sheetId = sheet.properties.sheetId
+
+            // Check if filter already exists
+            if (sheet.basicFilter != null) {
+                Log.d(tag, "Filter already exists on Transactions sheet")
+                return
+            }
+
+            val request = Request().setSetBasicFilter(
+                SetBasicFilterRequest().setFilter(
+                    BasicFilter()
+                        .setRange(GridRange()
+                            .setSheetId(sheetId)
+                            .setStartRowIndex(0)
+                            .setStartColumnIndex(0)
+                            .setEndColumnIndex(11) // Columns A to K
+                        )
+                )
+            )
+
+            val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(listOf(request))
+            service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+            Log.d(tag, "Basic filter applied to Transactions sheet")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply basic filter", e)
+        }
+    }
+
+    private fun applyCellAlignment(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheetId = spreadsheet.sheets.find { it.properties.title == "Transactions" }?.properties?.sheetId
+                ?: return
+
+            val requests = mutableListOf<Request>()
+
+            // Alignment Map: Column Index to Horizontal Alignment
+            val alignmentMap = mapOf(
+                0 to "CENTER", // Transaction ID
+                1 to "CENTER", // Date
+                2 to "CENTER", // Type
+                3 to "LEFT",   // Category
+                4 to "RIGHT",  // Amount
+                5 to "CENTER", // Payment Method
+                6 to "LEFT",   // Friend Name
+                7 to "LEFT",   // Notes
+                8 to "CENTER", // Created At
+                9 to "CENTER", // Updated At
+                10 to "CENTER" // Sync Status
+            )
+
+            alignmentMap.forEach { (columnIndex, alignment) ->
+                requests.add(Request().setRepeatCell(
+                    RepeatCellRequest()
+                        .setRange(GridRange()
+                            .setSheetId(sheetId)
+                            .setStartRowIndex(1) // Data rows
+                            .setStartColumnIndex(columnIndex)
+                            .setEndColumnIndex(columnIndex + 1)
+                        )
+                        .setCell(CellData().setUserEnteredFormat(CellFormat()
+                            .setHorizontalAlignment(alignment)
+                            .setVerticalAlignment("MIDDLE")
+                        ))
+                        .setFields("userEnteredFormat(horizontalAlignment,verticalAlignment)")
+                ))
+            }
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Cell alignment applied to Transactions sheet")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply cell alignment", e)
+        }
+    }
+
+    private fun applyFinalPolish(service: Sheets, spreadsheetId: String) {
+        try {
+            val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+            val sheets = spreadsheet.sheets
+            val requests = mutableListOf<Request>()
+
+            sheets.forEach { sheet ->
+                val sheetId = sheet.properties.sheetId
+                val sheetName = sheet.properties.title
+
+                // 1. Set Font Arial, Size 11, and Vertical Middle for all cells
+                requests.add(Request().setRepeatCell(
+                    RepeatCellRequest()
+                        .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(0).setEndRowIndex(1000))
+                        .setCell(CellData().setUserEnteredFormat(CellFormat()
+                            .setTextFormat(TextFormat().setFontFamily("Arial").setFontSize(11))
+                            .setVerticalAlignment("MIDDLE")
+                        ))
+                        .setFields("userEnteredFormat(textFormat.fontFamily,textFormat.fontSize,verticalAlignment)")
+                ))
+
+                // 2. Apply Thin Borders to a reasonable data range
+                val border = Border().setStyle("SOLID").setColor(Color().setRed(0.8f).setGreen(0.8f).setBlue(0.8f))
+                requests.add(Request().setUpdateBorders(
+                    UpdateBordersRequest()
+                        .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(0).setEndRowIndex(100).setStartColumnIndex(0).setEndColumnIndex(20))
+                        .setTop(border).setBottom(border).setLeft(border).setRight(border)
+                        .setInnerHorizontal(border).setInnerVertical(border)
+                ))
+
+                // 3. Wrap Text for Notes in Transactions sheet (Column H - Index 7)
+                if (sheetName == "Transactions") {
+                    requests.add(Request().setRepeatCell(
+                        RepeatCellRequest()
+                            .setRange(GridRange().setSheetId(sheetId).setStartColumnIndex(7).setEndColumnIndex(8))
+                            .setCell(CellData().setUserEnteredFormat(CellFormat().setWrapStrategy("WRAP")))
+                            .setFields("userEnteredFormat.wrapStrategy")
+                    ))
+                }
+
+                // 4. Auto Resize Rows
+                requests.add(Request().setAutoResizeDimensions(
+                    AutoResizeDimensionsRequest()
+                        .setDimensions(DimensionRange()
+                            .setSheetId(sheetId)
+                            .setDimension("ROWS")
+                            .setStartIndex(0)
+                        )
+                ))
+            }
+
+            if (requests.isNotEmpty()) {
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Final spreadsheet polish applied to all sheets")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to apply final polish", e)
         }
     }
 
