@@ -90,7 +90,7 @@ class HistoryViewModel @Inject constructor(
             val matchesQuery = if (query.isBlank()) true else {
                 expense.category.contains(query, ignoreCase = true) ||
                 expense.notes.contains(query, ignoreCase = true) ||
-                expense.friendId.contains(query, ignoreCase = true) ||
+                expense.friendId?.contains(query, ignoreCase = true) == true ||
                 expense.paymentMethod.contains(query, ignoreCase = true)
             }
             val matchesType = if (filters.typeFilter == "All") true else expense.type == filters.typeFilter

@@ -11,7 +11,7 @@ data class Expense(
     val category: String,
     val type: String, // "Debit" or "Credit"
     val paymentMethod: String, // "UPI", "Cash", "Bank"
-    val friendId: String = "",
+    val friendId: String? = null,
     val notes: String = "",
     val colorCode: String = "GENERAL",
     val timestamp: Long = System.currentTimeMillis(),

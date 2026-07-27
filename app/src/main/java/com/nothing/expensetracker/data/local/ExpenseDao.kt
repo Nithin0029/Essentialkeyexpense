@@ -12,6 +12,13 @@ data class CategoryExpense(
     val totalAmount: Double
 )
 
+data class FriendBalance(
+    val friendName: String,
+    val totalDebit: Double,
+    val totalCredit: Double,
+    val outstandingBalance: Double
+)
+
 @Dao
 interface ExpenseDao {
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
@@ -53,6 +60,21 @@ interface ExpenseDao {
 
     @Query("SELECT DISTINCT friendId FROM expenses WHERE friendId IS NOT NULL AND friendId != '' ORDER BY friendId ASC")
     fun getAllFriends(): Flow<List<String>>
+
+    @Query("""
+        SELECT 
+            friendId as friendName,
+            SUM(CASE WHEN type = 'Debit' THEN amount ELSE 0 END) as totalDebit,
+            SUM(CASE WHEN type = 'Credit' THEN amount ELSE 0 END) as totalCredit,
+            SUM(CASE WHEN type = 'Debit' THEN amount ELSE -amount END) as outstandingBalance
+        FROM expenses
+        WHERE category = 'Friends' AND friendId IS NOT NULL AND friendId != ''
+        GROUP BY friendId
+    """)
+    fun getFriendBalances(): Flow<List<FriendBalance>>
+
+    @Query("SELECT * FROM expenses WHERE friendId = :friendName AND category = 'Friends' ORDER BY timestamp DESC")
+    fun getTransactionsByFriend(friendName: String): Flow<List<Expense>>
 
     @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>

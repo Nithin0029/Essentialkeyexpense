@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.nothing.expensetracker.ui.dashboard.DashboardScreen
+import com.nothing.expensetracker.ui.friends.FriendDetailScreen
 import com.nothing.expensetracker.ui.friends.FriendsScreen
 import com.nothing.expensetracker.ui.history.EditTransactionScreen
 import com.nothing.expensetracker.ui.history.HistoryScreen
@@ -39,7 +40,11 @@ fun AppNavigation() {
                 )
             }
             composable(Screen.Friends.route) {
-                FriendsScreen()
+                FriendsScreen(
+                    onNavigateToLedger = { name ->
+                        navController.navigate("friend_detail/$name")
+                    }
+                )
             }
             composable(Screen.Reports.route) {
                 ReportsScreen()
@@ -52,6 +57,15 @@ fun AppNavigation() {
                 arguments = listOf(navArgument("expenseId") { type = NavType.LongType })
             ) {
                 EditTransactionScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToFriends = { navController.navigate(Screen.Friends.route) }
+                )
+            }
+            composable(
+                route = Screen.FriendDetail.route,
+                arguments = listOf(navArgument("friendName") { type = NavType.StringType })
+            ) {
+                FriendDetailScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

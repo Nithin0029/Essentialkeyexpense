@@ -24,7 +24,7 @@ fun QuickAddOverlayContent(
         category: String,
         type: String,
         paymentMethod: String,
-        friendId: String,
+        friendId: String?,
         notes: String
     ) -> Unit,
     onDismiss: () -> Unit
@@ -34,10 +34,10 @@ fun QuickAddOverlayContent(
     var selectedCategory by remember { mutableStateOf("Food") }
     var transactionType by remember { mutableStateOf("Debit") }
     var paymentMethod by remember { mutableStateOf("UPI") }
-    var friendId by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var friendIdText by remember { mutableStateOf("") }
 
-    val categories = listOf("Food", "Shopping", "Bills", "Travel", "Others")
+    val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
     val paymentMethods = listOf("UPI", "Cash", "Bank")
 
     var categoryExpanded by remember { mutableStateOf(false) }
@@ -154,6 +154,22 @@ fun QuickAddOverlayContent(
                     }
                 }
 
+                if (selectedCategory == "Friends") {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = friendIdText,
+                        onValueChange = { friendIdText = it },
+                        label = { Text("Friend Name", color = Color.Gray) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = Color.White,
+                            unfocusedBorderColor = Color.DarkGray
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // Payment Method Dropdown
@@ -219,7 +235,23 @@ fun QuickAddOverlayContent(
                     Button(
                         onClick = {
                             val amount = amountText.toDoubleOrNull() ?: 0.0
-                            onSaveExpense(amount, descriptionText, selectedCategory, transactionType, paymentMethod, friendId, notes)
+                            if (amount > 0) {
+                                val finalFriendId = if (selectedCategory == "Friends") friendIdText else null
+                                
+                                if (selectedCategory == "Friends" && finalFriendId.isNullOrBlank()) {
+                                    return@Button
+                                }
+                                
+                                onSaveExpense(
+                                    amount,
+                                    descriptionText,
+                                    selectedCategory,
+                                    transactionType,
+                                    paymentMethod,
+                                    finalFriendId,
+                                    notes
+                                )
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White)
                     ) {

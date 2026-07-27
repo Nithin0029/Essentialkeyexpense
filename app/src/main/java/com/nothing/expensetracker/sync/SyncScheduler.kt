@@ -92,7 +92,7 @@ class SyncWorker @AssistedInject constructor(
                         expense.category,                 // 4. Category
                         expense.amount.toString(),        // 5. Amount
                         expense.paymentMethod,            // 6. Payment Method
-                        expense.friendId,                 // 7. Friend Name
+                        expense.friendId ?: "",           // 7. Friend Name
                         expense.notes,                    // 8. Notes
                         expense.timestamp.toString(),     // 9. Created At
                         expense.timestamp.toString(),     // 10. Updated At

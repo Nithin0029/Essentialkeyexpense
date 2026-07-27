@@ -22,6 +22,7 @@ fun TransactionCard(
     type: String, // "Debit" or "Credit"
     amount: String,
     icon: ImageVector,
+    friendName: String? = null,
     onClick: () -> Unit
 ) {
     val amountColor = if (type == "Credit") Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -58,12 +59,21 @@ fun TransactionCard(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = category,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                        if (!friendName.isNullOrBlank()) {
+                            Text(
+                                text = " • $friendName",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                     if (notes.isNotBlank()) {
                         Text(
                             text = notes,

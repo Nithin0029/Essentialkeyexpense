@@ -15,6 +15,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Reports : Screen("reports", "Reports", Icons.Default.PieChart)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     object EditTransaction : Screen("edit_transaction/{expenseId}", "Edit Transaction", Icons.Default.History)
+    object FriendDetail : Screen("friend_detail/{friendName}", "Friend Ledger", Icons.Default.Group)
 }
 
 val bottomNavItems = listOf(

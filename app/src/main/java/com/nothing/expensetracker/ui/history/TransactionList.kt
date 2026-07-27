@@ -38,6 +38,7 @@ fun TransactionList(
                 type = expense.type,
                 amount = "₹${expense.amount.toInt()}",
                 icon = getCategoryIcon(expense.category),
+                friendName = expense.friendId,
                 onClick = { onExpenseClick(expense) }
             )
         }
