@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.nothing.expensetracker.data.local.AppDatabase
 import com.nothing.expensetracker.data.local.ExpenseDao
+import com.nothing.expensetracker.data.local.FriendDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -29,5 +30,10 @@ object DatabaseModule {
     @Provides
     fun provideExpenseDao(database: AppDatabase): ExpenseDao {
         return database.expenseDao()
+    }
+
+    @Provides
+    fun provideFriendDao(database: AppDatabase): FriendDao {
+        return database.friendDao()
     }
 }

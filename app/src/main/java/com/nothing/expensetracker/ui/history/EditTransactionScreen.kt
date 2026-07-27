@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,6 +24,7 @@ import java.util.*
 @Composable
 fun EditTransactionScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToFriends: () -> Unit,
     viewModel: EditTransactionViewModel = hiltViewModel()
 ) {
     val expenseState by viewModel.expense.collectAsState()
@@ -45,15 +47,18 @@ fun EditTransactionScreen(
         },
         containerColor = Color.Black
     ) { paddingValues ->
+        val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
         expenseState?.let { expense ->
             EditTransactionContent(
                 modifier = Modifier.padding(paddingValues),
                 expense = expense,
+                friends = friends,
                 onSave = { updatedExpense ->
                     viewModel.updateExpense(updatedExpense)
                     onNavigateBack()
                 },
-                onCancel = onNavigateBack
+                onCancel = onNavigateBack,
+                onNavigateToFriends = onNavigateToFriends
             )
         } ?: run {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -68,15 +73,17 @@ fun EditTransactionScreen(
 fun EditTransactionContent(
     modifier: Modifier = Modifier,
     expense: Expense,
+    friends: List<String>,
     onSave: (Expense) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onNavigateToFriends: () -> Unit
 ) {
     var amount by remember { mutableStateOf(expense.amount.toString()) }
     var category by remember { mutableStateOf(expense.category) }
     var type by remember { mutableStateOf(expense.type) }
     var paymentMethod by remember { mutableStateOf(expense.paymentMethod) }
     var notes by remember { mutableStateOf(expense.notes) }
-    var friendId by remember { mutableStateOf(expense.friendId) }
+    var friendId by remember { mutableStateOf(expense.friendId ?: "") }
     var timestamp by remember { mutableLongStateOf(expense.timestamp) }
 
     val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
@@ -87,6 +94,7 @@ fun EditTransactionContent(
     var typeExpanded by remember { mutableStateOf(false) }
     var methodExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var friendExpanded by remember { mutableStateOf(false) }
 
     val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()) }
 
@@ -264,19 +272,58 @@ fun EditTransactionContent(
         }
 
         // Friend
-        OutlinedTextField(
-            value = friendId,
-            onValueChange = { friendId = it },
-            label = { Text("Friend") },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            )
-        )
+        if (category == "Friends") {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = friendId,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Select Friend") },
+                    trailingIcon = {
+                        IconButton(onClick = { friendExpanded = true }) {
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.DarkGray,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+                DropdownMenu(
+                    expanded = friendExpanded,
+                    onDismissRequest = { friendExpanded = false },
+                    modifier = Modifier.fillMaxWidth(0.9f)
+                ) {
+                    if (friends.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No Friends Found", color = Color.Gray) },
+                            onClick = { friendExpanded = false }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Go to Friends Screen", color = MaterialTheme.colorScheme.primary) },
+                            onClick = { 
+                                friendExpanded = false
+                                onNavigateToFriends()
+                            }
+                        )
+                    } else {
+                        friends.forEach { friend ->
+                            DropdownMenuItem(
+                                text = { Text(friend) },
+                                onClick = {
+                                    friendId = friend
+                                    friendExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         // Notes
         OutlinedTextField(
@@ -312,13 +359,17 @@ fun EditTransactionContent(
                 onClick = {
                     val amountVal = amount.toDoubleOrNull() ?: 0.0
                     if (amountVal > 0 && category.isNotBlank() && type.isNotBlank() && paymentMethod.isNotBlank()) {
+                        if (category == "Friends" && friendId.isBlank()) {
+                            // Validation: Friend is mandatory for Friends category
+                            return@Button
+                        }
                         onSave(expense.copy(
                             amount = amountVal,
                             category = category,
                             type = type,
                             paymentMethod = paymentMethod,
                             notes = notes,
-                            friendId = friendId,
+                            friendId = if (category == "Friends") friendId else null,
                             timestamp = timestamp,
                             isSynced = false // Mark for re-sync
                         ))

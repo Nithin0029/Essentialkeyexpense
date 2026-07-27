@@ -2,12 +2,15 @@ package com.nothing.expensetracker.data.repository
 
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.ExpenseDao
+import com.nothing.expensetracker.data.local.FriendDao
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ExpenseRepository @Inject constructor(
-    private val expenseDao: ExpenseDao
+    private val expenseDao: ExpenseDao,
+    private val friendDao: FriendDao
 ) {
     fun getAllExpenses() = expenseDao.getAllExpenses()
 
@@ -27,7 +30,9 @@ class ExpenseRepository @Inject constructor(
 
     fun getAllCategories() = expenseDao.getAllCategories()
 
-    fun getAllFriends() = expenseDao.getAllFriends()
+    fun getAllFriends() = friendDao.getAllFriends().map { list -> list.map { it.name } }
+
+    fun getFriendBalances() = expenseDao.getFriendBalances()
 
     fun getExpensesByCategory() = expenseDao.getExpensesByCategory()
 

@@ -163,7 +163,7 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
         category: String,
         type: String,
         paymentMethod: String,
-        friendId: String,
+        friendId: String?,
         notes: String,
         color: String
     ) {

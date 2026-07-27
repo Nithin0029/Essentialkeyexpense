@@ -29,6 +29,8 @@ class EditTransactionViewModel @Inject constructor(
         }
     }
 
+    fun getAllFriends() = repository.getAllFriends()
+
     fun updateExpense(updatedExpense: Expense) {
         viewModelScope.launch {
             repository.updateExpense(updatedExpense)

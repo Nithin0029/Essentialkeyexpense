@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,10 +43,13 @@ class QuickAddShortcutActivity : ComponentActivity() {
             var selectedCategory by remember { mutableStateOf("Food") }
             var selectedMethod by remember { mutableStateOf("UPI") }
             var notesText by remember { mutableStateOf("") }
+            var friendId by remember { mutableStateOf("") }
 
             var catExpanded by remember { mutableStateOf(false) }
             var methodExpanded by remember { mutableStateOf(false) }
+            var friendExpanded by remember { mutableStateOf(false) }
 
+            val friends by repository.getAllFriends().collectAsState(initial = emptyList())
             val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
             val paymentMethods = listOf("UPI", "Cash", "Bank")
 
@@ -109,6 +114,67 @@ class QuickAddShortcutActivity : ComponentActivity() {
                             }
                         }
 
+                        // Friend specific fields
+                        if (selectedCategory == "Friends") {
+                            // Friend Selector
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = friendId,
+                                    onValueChange = { friendId = it },
+                                    label = { Text("Select Friend", color = Color.Gray) },
+                                    readOnly = true,
+                                    textStyle = LocalTextStyle.current.copy(color = Color.White),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    trailingIcon = {
+                                        IconButton(onClick = { friendExpanded = true }) {
+                                            Icon(
+                                                imageVector = Icons.Default.ArrowDropDown,
+                                                contentDescription = null,
+                                                tint = Color.White
+                                            )
+                                        }
+                                    }
+                                )
+                                DropdownMenu(
+                                    expanded = friendExpanded,
+                                    onDismissRequest = { friendExpanded = false },
+                                    modifier = Modifier.fillMaxWidth(0.8f)
+                                ) {
+                                    if (friends.isEmpty()) {
+                                        DropdownMenuItem(
+                                            text = { Text("No Friends Found", color = Color.Gray) },
+                                            onClick = { 
+                                                friendExpanded = false
+                                                // Navigate to app to add friends if possible, 
+                                                // but typically we stay in the shortcut.
+                                                // For now just informative.
+                                            }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Add Friend in App", color = MaterialTheme.colorScheme.primary) },
+                                            onClick = {
+                                                friendExpanded = false
+                                                val intent = android.content.Intent(this@QuickAddShortcutActivity, com.nothing.expensetracker.MainActivity::class.java)
+                                                intent.putExtra("navigate_to", "friends")
+                                                startActivity(intent)
+                                                finish()
+                                            }
+                                        )
+                                    } else {
+                                        friends.forEach { friend ->
+                                            DropdownMenuItem(
+                                                text = { Text(friend) },
+                                                onClick = {
+                                                    friendId = friend
+                                                    friendExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
                         // 4. Payment Method Dropdown
                         Box {
                             OutlinedButton(
@@ -147,12 +213,24 @@ class QuickAddShortcutActivity : ComponentActivity() {
                             Button(
                                 onClick = {
                                     val amount = amountText.toDoubleOrNull()
-                                    if (amount != null && amount > 0) {
-                                        saveTransaction(amount, selectedCategory, selectedType, selectedMethod, notesText)
-                                        finish()
-                                    } else {
+                                    if (amount == null || amount <= 0) {
                                         Toast.makeText(applicationContext, "Enter a valid amount", Toast.LENGTH_SHORT).show()
+                                        return@Button
                                     }
+                                    if (selectedCategory == "Friends" && friendId.isBlank()) {
+                                        Toast.makeText(applicationContext, "Please select a friend", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    
+                                    saveTransaction(
+                                        amount = amount,
+                                        category = selectedCategory,
+                                        type = selectedType,
+                                        method = selectedMethod,
+                                        notes = notesText,
+                                        fId = if (selectedCategory == "Friends") friendId else null
+                                    )
+                                    finish()
                                 },
                                 modifier = Modifier.weight(1f),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
@@ -166,7 +244,14 @@ class QuickAddShortcutActivity : ComponentActivity() {
         }
     }
 
-    private fun saveTransaction(amount: Double, category: String, type: String, method: String, notes: String) {
+    private fun saveTransaction(
+        amount: Double,
+        category: String,
+        type: String,
+        method: String,
+        notes: String,
+        fId: String?
+    ) {
         CoroutineScope(Dispatchers.IO).launch {
             val expense = Expense(
                 amount = amount,
@@ -174,6 +259,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                 category = category,
                 type = type,
                 paymentMethod = method,
+                friendId = fId,
                 notes = notes,
                 timestamp = System.currentTimeMillis(),
                 isSynced = false

@@ -72,7 +72,7 @@ fun TransactionDetailSheet(
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 DetailRow(label = "Type", value = expense.type)
                 DetailRow(label = "Payment Method", value = expense.paymentMethod)
-                if (expense.friendId.isNotBlank()) {
+                if (!expense.friendId.isNullOrBlank()) {
                     DetailRow(label = "Friend", value = expense.friendId)
                 }
                 DetailRow(
