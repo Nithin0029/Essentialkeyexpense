@@ -3,14 +3,20 @@ package com.nothing.expensetracker.ui.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,14 +32,33 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.nothing.expensetracker.auth.AuthState
 import java.util.*
 
+enum class MpinVerifyReason {
+    EDIT_OPENING_BANK_BALANCE,
+    EDIT_OPENING_CASH_BALANCE,
+    DISABLE_MPIN
+}
+
 @Composable
 fun SettingsScreen(
+    onNavigateToCreateMpin: () -> Unit,
+    onNavigateToChangeMpin: () -> Unit,
+    onNavigateToCategoryManagement: () -> Unit,
+    onNavigateToOverallBudget: () -> Unit,
+    onNavigateToCategoryBudgets: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
+    mpinViewModel: com.nothing.expensetracker.ui.auth.MpinViewModel = hiltViewModel()
 ) {
-    val openingBalance by viewModel.openingBalance.collectAsState()
+    val openingBankBalance by viewModel.openingBankBalance.collectAsState()
+    val openingCashBalance by viewModel.openingCashBalance.collectAsState()
     val authState by viewModel.authState.collectAsState()
     val spreadsheetState by viewModel.spreadsheetState.collectAsState()
-    var showDialog by remember { mutableStateOf(false) }
+    
+    var showOpeningBankBalanceDialog by remember { mutableStateOf(false) }
+    var showOpeningCashBalanceDialog by remember { mutableStateOf(false) }
+    var showMpinVerifyDialog by remember { mutableStateOf(false) }
+    var mpinVerifyReason by remember { mutableStateOf<MpinVerifyReason?>(null) }
+    
+    val mpinEnabled = mpinViewModel.isMpinSet()
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -59,12 +84,40 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
+            Spacer(modifier = Modifier.height(4.dp))
             FinancialSettingsCard(
-                openingBalance = openingBalance,
-                onEditOpeningBalance = { showDialog = true },
+                openingBankBalance = openingBankBalance,
+                openingCashBalance = openingCashBalance,
+                onEditBank = { 
+                    if (mpinEnabled) {
+                        mpinVerifyReason = MpinVerifyReason.EDIT_OPENING_BANK_BALANCE
+                        showMpinVerifyDialog = true
+                    } else {
+                        showOpeningBankBalanceDialog = true
+                    }
+                },
+                onEditCash = {
+                    if (mpinEnabled) {
+                        mpinVerifyReason = MpinVerifyReason.EDIT_OPENING_CASH_BALANCE
+                        showMpinVerifyDialog = true
+                    } else {
+                        showOpeningCashBalanceDialog = true
+                    }
+                }
+            )
+
+            SecuritySettingsCard(
+                mpinEnabled = mpinEnabled,
+                onEnableMpin = onNavigateToCreateMpin,
+                onChangeMpin = onNavigateToChangeMpin,
+                onDisableMpin = {
+                    mpinVerifyReason = MpinVerifyReason.DISABLE_MPIN
+                    showMpinVerifyDialog = true
+                }
             )
 
             GoogleSyncSettingsCard(
@@ -77,19 +130,200 @@ fun SettingsScreen(
                     viewModel.signOut()
                 },
             )
+
+            CategoryManagementCard(
+                onClick = onNavigateToCategoryManagement
+            )
+
+            BudgetManagementSection(
+                onOverallBudgetClick = onNavigateToOverallBudget,
+                onCategoryBudgetsClick = onNavigateToCategoryBudgets
+            )
+
+            AboutCard()
+            
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 
-    if (showDialog) {
+    if (showOpeningBankBalanceDialog) {
         OpeningBalanceDialog(
-            initialBalance = openingBalance,
-            onDismiss = { showDialog = false },
+            title = "Opening Bank Balance",
+            initialBalance = openingBankBalance,
+            onDismiss = { showOpeningBankBalanceDialog = false },
             onSave = {
-                viewModel.updateOpeningBalance(it)
-                showDialog = false
+                viewModel.updateOpeningBankBalance(it)
+                showOpeningBankBalanceDialog = false
             }
         )
     }
+
+    if (showOpeningCashBalanceDialog) {
+        OpeningBalanceDialog(
+            title = "Opening Cash Balance",
+            initialBalance = openingCashBalance,
+            onDismiss = { showOpeningCashBalanceDialog = false },
+            onSave = {
+                viewModel.updateOpeningCashBalance(it)
+                showOpeningCashBalanceDialog = false
+            }
+        )
+    }
+
+    if (showMpinVerifyDialog) {
+        MpinVerifyDialog(
+            onDismiss = {
+                showMpinVerifyDialog = false
+                mpinVerifyReason = null
+            },
+            onSuccess = {
+                showMpinVerifyDialog = false
+                when (mpinVerifyReason) {
+                    MpinVerifyReason.EDIT_OPENING_BANK_BALANCE -> showOpeningBankBalanceDialog = true
+                    MpinVerifyReason.EDIT_OPENING_CASH_BALANCE -> showOpeningCashBalanceDialog = true
+                    MpinVerifyReason.DISABLE_MPIN -> mpinViewModel.removeMpin() 
+                    null -> {}
+                }
+                mpinVerifyReason = null
+            }
+        )
+    }
+}
+
+@Composable
+fun SecuritySettingsCard(
+    mpinEnabled: Boolean,
+    onEnableMpin: () -> Unit,
+    onChangeMpin: () -> Unit,
+    onDisableMpin: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Security",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            SettingRow(
+                label = "App Lock (MPIN)",
+                value = if (mpinEnabled) "Enabled" else "Disabled",
+                action = {
+                    if (!mpinEnabled) {
+                        Button(onClick = onEnableMpin, shape = RoundedCornerShape(8.dp)) {
+                            Text("Enable")
+                        }
+                    } else {
+                        IconButton(onClick = onDisableMpin) {
+                            Icon(Icons.Default.LockOpen, contentDescription = "Disable", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            )
+
+            if (mpinEnabled) {
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Change MPIN", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    IconButton(onClick = onChangeMpin) {
+                        Icon(Icons.Default.Edit, contentDescription = "Change", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MpinVerifyDialog(
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit,
+    viewModel: com.nothing.expensetracker.ui.auth.MpinViewModel = hiltViewModel()
+) {
+    val mpin by viewModel.mpin.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    LaunchedEffect(mpin) {
+        if (mpin.length == 4) {
+            if (viewModel.verifyMpin(mpin)) {
+                onSuccess()
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Verify MPIN", color = Color.White) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = "Enter your 4-digit code to continue", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    repeat(4) { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(if (index < mpin.length) MaterialTheme.colorScheme.primary else Color.DarkGray)
+                        )
+                    }
+                }
+                if (error != null) {
+                    Text(text = error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // Simplified keypad for dialog
+                val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "DEL")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    keys.chunked(3).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { key ->
+                                TextButton(
+                                    onClick = {
+                                        when (key) {
+                                            "DEL" -> viewModel.onDeleteClick()
+                                            "C" -> viewModel.clearMpin()
+                                            else -> viewModel.onNumberClick(key)
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = CircleShape
+                                ) {
+                                    Text(text = key, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.Gray)
+            }
+        },
+        containerColor = Color(0xFF1E1E1E),
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 @Composable
@@ -245,8 +479,10 @@ fun GoogleSyncSettingsCard(
 
 @Composable
 fun FinancialSettingsCard(
-    openingBalance: Double,
-    onEditOpeningBalance: () -> Unit
+    openingBankBalance: Double,
+    openingCashBalance: Double,
+    onEditBank: () -> Unit,
+    onEditCash: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -268,10 +504,22 @@ fun FinancialSettingsCard(
             )
 
             SettingRow(
-                label = "Opening Balance",
-                value = "₹%,.0f".format(Locale.getDefault(), openingBalance),
+                label = "Opening Bank Balance",
+                value = "₹%,.0f".format(Locale.getDefault(), openingBankBalance),
                 action = {
-                    IconButton(onClick = onEditOpeningBalance) {
+                    IconButton(onClick = onEditBank) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                    }
+                }
+            )
+
+            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
+            SettingRow(
+                label = "Opening Cash Balance",
+                value = "₹%,.0f".format(Locale.getDefault(), openingCashBalance),
+                action = {
+                    IconButton(onClick = onEditCash) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
                     }
                 }
@@ -317,6 +565,7 @@ fun SettingRow(
 
 @Composable
 fun OpeningBalanceDialog(
+    title: String,
     initialBalance: Double,
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit
@@ -325,7 +574,7 @@ fun OpeningBalanceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Opening Balance", color = Color.White) },
+        title = { Text(title, color = Color.White) },
         text = {
             OutlinedTextField(
                 value = balanceText,
@@ -360,4 +609,185 @@ fun OpeningBalanceDialog(
         containerColor = Color(0xFF1E1E1E),
         shape = RoundedCornerShape(20.dp)
     )
+}
+
+@Composable
+fun AboutCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "About",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Essential Expense Tracker",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White
+            )
+            Text(
+                text = "Version 2.0.0",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Built with Nothing OS design language. Secure, private, and fully synchronized with your Google Account.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.LightGray
+            )
+        }
+    }
+}
+
+@Composable
+fun BudgetManagementSection(
+    onOverallBudgetClick: () -> Unit,
+    onCategoryBudgetsClick: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(
+            text = "Budget",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onOverallBudgetClick),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1A1A1A),
+                contentColor = Color.White
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Overall Budget",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Manage your monthly spending limit",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onCategoryBudgetsClick),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFF1A1A1A),
+                contentColor = Color.White
+            )
+        ) {
+            Row(
+                modifier = Modifier.padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Category,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Category Budgets",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "Set limits for specific categories",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CategoryManagementCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Category,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Category Management",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Add, edit, or remove expense categories",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
 }

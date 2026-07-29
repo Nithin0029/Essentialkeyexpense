@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.LocalMovies
 import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -22,14 +23,17 @@ fun TransactionList(
     expenses: List<Expense>,
     onExpenseClick: (Expense) -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+    val dateFormat = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        items(expenses) { expense ->
+        items(
+            items = expenses,
+            key = { it.id }
+        ) { expense ->
             TransactionCard(
                 category = expense.category,
                 notes = expense.notes,

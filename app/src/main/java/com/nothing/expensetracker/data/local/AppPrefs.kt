@@ -15,20 +15,47 @@ class AppPrefs @Inject constructor(
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     private val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
 
-    private val _openingBalance = MutableStateFlow(getOpeningBalance())
-    val openingBalance: StateFlow<Double> = _openingBalance.asStateFlow()
+    // Migration and Storage logic for Opening Bank Balance
+    private val _openingBankBalance = MutableStateFlow(getOpeningBankBalance())
+    val openingBankBalance: StateFlow<Double> = _openingBankBankBalanceAsStateFlow()
+
+    // Storage logic for Opening Cash Balance
+    private val _openingCashBalance = MutableStateFlow(getOpeningCashBalance())
+    val openingCashBalance: StateFlow<Double> = _openingCashBalance.asStateFlow()
+
+    private fun _openingBankBankBalanceAsStateFlow() = _openingBankBalance.asStateFlow()
 
     private val _spreadsheetId = MutableStateFlow(getSpreadsheetId())
     val spreadsheetId: StateFlow<String?> = _spreadsheetId.asStateFlow()
 
-    fun setOpeningBalance(balance: Double) {
-        prefs.edit().putFloat("opening_balance", balance.toFloat()).apply()
-        _openingBalance.value = balance
+    fun setOpeningBankBalance(balance: Double) {
+        prefs.edit().putFloat("opening_bank_balance", balance.toFloat()).apply()
+        _openingBankBalance.value = balance
     }
 
-    private fun getOpeningBalance(): Double {
-        return prefs.getFloat("opening_balance", 15000.0f).toDouble()
+    private fun getOpeningBankBalance(): Double {
+        // Migration: check new key, fallback to old key, then default
+        if (prefs.contains("opening_bank_balance")) {
+            return prefs.getFloat("opening_bank_balance", 0f).toDouble()
+        }
+        val oldBalance = prefs.getFloat("opening_balance", 15000.0f).toDouble()
+        // Save to new key for future
+        prefs.edit().putFloat("opening_bank_balance", oldBalance.toFloat()).apply()
+        return oldBalance
     }
+
+    fun setOpeningCashBalance(balance: Double) {
+        prefs.edit().putFloat("opening_cash_balance", balance.toFloat()).apply()
+        _openingCashBalance.value = balance
+    }
+
+    private fun getOpeningCashBalance(): Double {
+        return prefs.getFloat("opening_cash_balance", 0.0f).toDouble()
+    }
+
+    // Temporary backward compatibility for components not yet updated
+    val openingBalance: StateFlow<Double> = openingBankBalance
+    fun setOpeningBalance(balance: Double) = setOpeningBankBalance(balance)
 
     fun setSpreadsheetId(id: String?) {
         syncPrefs.edit().putString("spreadsheet_id", id).apply()

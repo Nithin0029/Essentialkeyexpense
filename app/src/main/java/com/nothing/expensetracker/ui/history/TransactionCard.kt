@@ -72,6 +72,12 @@ fun TransactionCard(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
+                        } else if (category == "Friends") {
+                            Text(
+                                text = " • Deleted Friend",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
                         }
                     }
                     if (notes.isNotBlank()) {

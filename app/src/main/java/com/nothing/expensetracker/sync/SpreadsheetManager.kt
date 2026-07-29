@@ -26,6 +26,7 @@ class SpreadsheetManager @Inject constructor(
     private val repository: ExpenseRepository,
 ) {
     private val tag = "SpreadsheetManager"
+    private var isInitialized = false
 
     @Suppress("DEPRECATION")
     private fun getSheetsService(): Sheets? {
@@ -65,18 +66,23 @@ class SpreadsheetManager @Inject constructor(
         }
 
         spreadsheetId?.let { id ->
-            ensureRequiredSheetsExist(service, id)
-            ensureHeadersExist(service, id)
-            applyHeaderFormatting(service, id)
-            applyColumnWidths(service, id)
-            applyAlternatingRowColors(service, id)
-            applyValueFormatting(service, id)
-            applyConditionalFormatting(service, id)
-            applyFilters(service, id)
-            applyCellAlignment(service, id)
-            applyFinalPolish(service, id)
-            ensureInitialDataExists(service, id)
-            ensureMasterDataExists(service, id)
+            if (!isInitialized) {
+                ensureRequiredSheetsExist(service, id)
+                ensureHeadersExist(service, id)
+                applyHeaderFormatting(service, id)
+                applyColumnWidths(service, id)
+                applyAlternatingRowColors(service, id)
+                applyValueFormatting(service, id)
+                applyConditionalFormatting(service, id)
+                applyFilters(service, id)
+                applyCellAlignment(service, id)
+                applyFinalPolish(service, id)
+                ensureInitialDataExists(service, id)
+                repository.seedDefaultCategories() // Ensure DB is seeded
+                ensureMasterDataExists(service, id)
+                isInitialized = true
+                Log.d(tag, "Spreadsheet initialized and cached for this session.")
+            }
         }
 
         return@withContext spreadsheetId
@@ -84,15 +90,13 @@ class SpreadsheetManager @Inject constructor(
 
     private suspend fun ensureMasterDataExists(service: Sheets, spreadsheetId: String) {
         // 1. Initialize Categories
-        val defaultCategories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
         val localCategories = repository.getAllCategories().first()
-        val allCategories = (defaultCategories + localCategories).distinct()
         
         ensureListData(
             service = service,
             spreadsheetId = spreadsheetId,
             sheetName = "Categories",
-            data = allCategories.mapIndexed { index, name -> listOf((index + 1).toString(), name) }
+            data = localCategories.mapIndexed { index, name -> listOf((index + 1).toString(), name) }
         )
 
         // 2. Initialize Friends
@@ -133,7 +137,8 @@ class SpreadsheetManager @Inject constructor(
 
         // 1. Initial Settings
         val settings = mapOf(
-            "Opening Balance" to "₹${appPrefs.openingBalance.value}",
+            "Opening Bank Balance" to "₹${appPrefs.openingBankBalance.value}",
+            "Opening Cash Balance" to "₹${appPrefs.openingCashBalance.value}",
             "Currency" to "INR",
             "Currency Symbol" to "₹",
             "Date Format" to "DD/MM/YYYY",
@@ -182,7 +187,11 @@ class SpreadsheetManager @Inject constructor(
                 "Updated At", "Sync Status"
             ),
             "Categories" to listOf("Category ID", "Category Name"),
-            "Friends" to listOf("Friend ID", "Friend Name"),
+            "Friends" to listOf(
+                "Friend ID", "Friend Name", "Total Debit", "Total Credit", 
+                "Outstanding Balance", "Status", "Last Updated"
+            ),
+            "Budgets" to listOf("Budget ID", "Category", "Amount", "Month", "Year"),
             "Settings" to listOf("Setting", "Value"),
             "App_Metadata" to listOf("Key", "Value")
         )
@@ -255,7 +264,7 @@ class SpreadsheetManager @Inject constructor(
             if (requests.isNotEmpty()) {
                 val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
                 service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
-                Log.d(tag, "Header formatting applied to all sheets")
+                
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply header formatting", e)
@@ -274,7 +283,9 @@ class SpreadsheetManager @Inject constructor(
                 
                 val widths = when (sheetName) {
                     "Transactions" -> listOf(120, 120, 90, 140, 100, 140, 160, 250, 180, 180, 120)
-                    "Categories", "Friends" -> listOf(100, 220)
+                    "Categories" -> listOf(100, 220)
+                    "Friends" -> listOf(90, 220, 130, 130, 170, 180, 180)
+                    "Budgets" -> listOf(120, 160, 120, 80, 80)
                     "Settings", "App_Metadata" -> listOf(220, 220)
                     else -> emptyList()
                 }
@@ -297,7 +308,7 @@ class SpreadsheetManager @Inject constructor(
             if (requests.isNotEmpty()) {
                 val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
                 service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
-                Log.d(tag, "Column widths optimized for all sheets")
+                
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply column widths", e)
@@ -380,6 +391,34 @@ class SpreadsheetManager @Inject constructor(
                 service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
                 Log.d(tag, "Value formatting applied to Transactions sheet")
             }
+
+            // 4. Friends Sheet Value Formatting
+            val friendsSheetId = spreadsheet.sheets.find { it.properties.title == "Friends" }?.properties?.sheetId
+            if (friendsSheetId != null) {
+                val friendsRequests = mutableListOf<Request>()
+                
+                // Currency for Debit, Credit, Balance (Columns C, D, E - Indices 2, 3, 4)
+                friendsRequests.add(Request().setRepeatCell(
+                    RepeatCellRequest()
+                        .setRange(GridRange().setSheetId(friendsSheetId).setStartRowIndex(1).setStartColumnIndex(2).setEndColumnIndex(5))
+                        .setCell(CellData().setUserEnteredFormat(CellFormat().setNumberFormat(NumberFormat().setType("CURRENCY").setPattern("₹#,##0.00"))))
+                        .setFields("userEnteredFormat.numberFormat")
+                ))
+
+                // Date Time for Last Updated (Column G - Index 6)
+                friendsRequests.add(Request().setRepeatCell(
+                    RepeatCellRequest()
+                        .setRange(GridRange().setSheetId(friendsSheetId).setStartRowIndex(1).setStartColumnIndex(6).setEndColumnIndex(7))
+                        .setCell(CellData().setUserEnteredFormat(CellFormat().setNumberFormat(NumberFormat().setType("DATE_TIME").setPattern("dd-MMM-yyyy HH:mm:ss"))))
+                        .setFields("userEnteredFormat.numberFormat")
+                ))
+
+                if (friendsRequests.isNotEmpty()) {
+                    val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(friendsRequests)
+                    service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                    Log.d(tag, "Value formatting applied to Friends sheet")
+                }
+            }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply value formatting", e)
         }
@@ -443,6 +482,48 @@ class SpreadsheetManager @Inject constructor(
                 service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
                 Log.d(tag, "Conditional formatting rules applied to Transactions sheet")
             }
+
+            // 3. Friends Sheet Rules
+            val friendsSheet = spreadsheet.sheets.find { it.properties.title == "Friends" }
+            val friendsSheetId = friendsSheet?.properties?.sheetId
+            if (friendsSheetId != null && friendsSheet.conditionalFormats.isNullOrEmpty()) {
+                val friendsRequests = mutableListOf<Request>()
+
+                // Helper to create a rule for Friends sheet
+                fun createFriendRule(text: String, bgColor: Color, textColor: Color? = null): ConditionalFormatRule {
+                    val condition = ConditionValue().setUserEnteredValue(text)
+                    val rule = BooleanRule()
+                        .setCondition(BooleanCondition().setType("TEXT_EQ").setValues(listOf(condition)))
+                        .setFormat(CellFormat().setBackgroundColor(bgColor))
+                    
+                    textColor?.let { rule.format.setTextFormat(TextFormat().setForegroundColor(it)) }
+
+                    return ConditionalFormatRule()
+                        .setRanges(listOf(GridRange()
+                            .setSheetId(friendsSheetId)
+                            .setStartRowIndex(1)
+                            .setStartColumnIndex(5) // Column F - Status
+                            .setEndColumnIndex(6)
+                        ))
+                        .setBooleanRule(rule)
+                }
+
+                friendsRequests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                    createFriendRule("Friend Owes You", Color().setRed(0.83f).setGreen(0.93f).setBlue(0.85f), Color().setRed(0.0f).setGreen(0.38f).setBlue(0.0f))
+                )))
+                friendsRequests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                    createFriendRule("You Owe Friend", Color().setRed(0.97f).setGreen(0.84f).setBlue(0.85f), Color().setRed(0.64f).setGreen(0.1f).setBlue(0.1f))
+                )))
+                friendsRequests.add(Request().setAddConditionalFormatRule(AddConditionalFormatRuleRequest().setRule(
+                    createFriendRule("Settled", Color().setRed(0.95f).setGreen(0.95f).setBlue(0.95f), Color().setRed(0.5f).setGreen(0.5f).setBlue(0.5f))
+                )))
+
+                if (friendsRequests.isNotEmpty()) {
+                    val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(friendsRequests)
+                    service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                    Log.d(tag, "Conditional formatting rules applied to Friends sheet")
+                }
+            }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply conditional formatting", e)
         }
@@ -475,6 +556,24 @@ class SpreadsheetManager @Inject constructor(
             val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(listOf(request))
             service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
             Log.d(tag, "Basic filter applied to Transactions sheet")
+
+            // 2. Friends Sheet Filter
+            val friendsSheet = spreadsheet.sheets.find { it.properties.title == "Friends" }
+            if (friendsSheet != null && friendsSheet.basicFilter == null) {
+                val friendsRequest = Request().setSetBasicFilter(
+                    SetBasicFilterRequest().setFilter(
+                        BasicFilter().setRange(GridRange()
+                            .setSheetId(friendsSheet.properties.sheetId)
+                            .setStartRowIndex(0)
+                            .setEndRowIndex(1000)
+                            .setStartColumnIndex(0)
+                            .setEndColumnIndex(7) // Columns A to G
+                        )
+                    )
+                )
+                service.spreadsheets().batchUpdate(spreadsheetId, BatchUpdateSpreadsheetRequest().setRequests(listOf(friendsRequest))).execute()
+                Log.d(tag, "Basic filter applied to Friends sheet")
+            }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply basic filter", e)
         }
@@ -524,6 +623,33 @@ class SpreadsheetManager @Inject constructor(
                 val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(requests)
                 service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
                 Log.d(tag, "Cell alignment applied to Transactions sheet")
+            }
+
+            // 3. Friends Sheet Alignment
+            val friendsSheetId = spreadsheet.sheets.find { it.properties.title == "Friends" }?.properties?.sheetId
+            if (friendsSheetId != null) {
+                val friendsRequests = mutableListOf<Request>()
+                val friendsAlignmentMap = mapOf(
+                    0 to "CENTER", // ID
+                    1 to "LEFT",   // Name
+                    2 to "RIGHT",  // Debit
+                    3 to "RIGHT",  // Credit
+                    4 to "RIGHT",  // Balance
+                    5 to "CENTER", // Status
+                    6 to "CENTER"  // Last Updated
+                )
+                friendsAlignmentMap.forEach { (columnIndex, alignment) ->
+                    friendsRequests.add(Request().setRepeatCell(
+                        RepeatCellRequest()
+                            .setRange(GridRange().setSheetId(friendsSheetId).setStartRowIndex(1).setStartColumnIndex(columnIndex).setEndColumnIndex(columnIndex + 1))
+                            .setCell(CellData().setUserEnteredFormat(CellFormat().setHorizontalAlignment(alignment).setVerticalAlignment("MIDDLE")))
+                            .setFields("userEnteredFormat(horizontalAlignment,verticalAlignment)")
+                    ))
+                }
+                if (friendsRequests.isNotEmpty()) {
+                    service.spreadsheets().batchUpdate(spreadsheetId, BatchUpdateSpreadsheetRequest().setRequests(friendsRequests)).execute()
+                    Log.d(tag, "Cell alignment applied to Friends sheet")
+                }
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to apply cell alignment", e)
@@ -597,7 +723,7 @@ class SpreadsheetManager @Inject constructor(
             val existingSheets = spreadsheet.sheets
             val existingSheetNames = existingSheets.map { it.properties.title }
             
-            val requiredSheets = listOf("Transactions", "Categories", "Friends", "Settings", "App_Metadata")
+            val requiredSheets = listOf("Transactions", "Categories", "Friends", "Budgets", "Settings", "App_Metadata")
             val requests = mutableListOf<Request>()
 
             // 1. Handle "Sheet1" - rename to "Transactions" if missing, otherwise mark for deletion
@@ -664,6 +790,357 @@ class SpreadsheetManager @Inject constructor(
         } catch (e: Exception) {
             Log.e(tag, "Failed to create new spreadsheet", e)
             null
+        }
+    }
+
+    /**
+     * Finds the row number for a given value in a specific column.
+     * Returns 1-based row number or null if not found.
+     */
+    private suspend fun findRowIndex(service: Sheets, spreadsheetId: String, sheetName: String, value: String, column: String = "A"): Int? {
+        return try {
+            val range = "$sheetName!$column:$column"
+            val response = service.spreadsheets().values().get(spreadsheetId, range).execute()
+            val values = response.getValues()
+            if (values != null) {
+                for (i in values.indices) {
+                    if (values[i].isNotEmpty() && values[i][0].toString() == value) {
+                        return i + 1
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            Log.e(tag, "Error finding row in $sheetName for $value", e)
+            null
+        }
+    }
+
+    /**
+     * Synchronizes a budget record to the "Budgets" sheet.
+     */
+    suspend fun syncBudgetToSheet(budget: com.nothing.expensetracker.data.local.Budget) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val budgetId = if (budget.categoryName == null) "OVERALL" else "CAT_${budget.categoryName}"
+            val rowValues = listOf(
+                budgetId,
+                budget.categoryName ?: "Overall",
+                budget.amount.toString(),
+                budget.month.toString(),
+                budget.year.toString()
+            )
+            val body = ValueRange().setValues(listOf(rowValues))
+            
+            // Find existing row by Budget ID (Column A)
+            val rowIndex = findRowIndex(service, spreadsheetId, "Budgets", budgetId)
+            
+            if (rowIndex != null) {
+                val range = "Budgets!A$rowIndex:E$rowIndex"
+                service.spreadsheets().values().update(spreadsheetId, range, body)
+                    .setValueInputOption("RAW")
+                    .execute()
+            } else {
+                service.spreadsheets().values().append(spreadsheetId, "Budgets!A2", body)
+                    .setValueInputOption("RAW")
+                    .execute()
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to sync budget to sheet", e)
+        }
+    }
+
+    /**
+     * Deletes a budget record from the "Budgets" sheet.
+     */
+    suspend fun deleteBudgetFromSheet(categoryName: String?) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val budgetId = if (categoryName == null) "OVERALL" else "CAT_$categoryName"
+            val rowIndex = findRowIndex(service, spreadsheetId, "Budgets", budgetId)
+            
+            if (rowIndex != null) {
+                val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+                val sheetId = spreadsheet.sheets.find { it.properties.title == "Budgets" }?.properties?.sheetId ?: return@withContext
+
+                val deleteRequest = Request().setDeleteDimension(
+                    DeleteDimensionRequest().setRange(
+                        DimensionRange()
+                            .setSheetId(sheetId)
+                            .setDimension("ROWS")
+                            .setStartIndex(rowIndex - 1)
+                            .setEndIndex(rowIndex)
+                    )
+                )
+
+                service.spreadsheets().batchUpdate(spreadsheetId, BatchUpdateSpreadsheetRequest().setRequests(listOf(deleteRequest))).execute()
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to delete budget from sheet", e)
+        }
+    }
+
+    /**
+     * Appends a new category to the "Categories" sheet.
+     */
+    suspend fun addCategoryToSheet(category: com.nothing.expensetracker.data.local.Category) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val rowValues = listOf(category.id.toString(), category.name)
+            val body = ValueRange().setValues(listOf(rowValues))
+            service.spreadsheets().values().append(spreadsheetId, "Categories!A2", body)
+                .setValueInputOption("RAW")
+                .execute()
+            Log.d(tag, "Appended category: ${category.name}")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to add category to sheet: ${category.name}", e)
+        }
+    }
+
+    /**
+     * Updates an existing category in the "Categories" sheet.
+     */
+    suspend fun updateCategoryInSheet(oldName: String, category: com.nothing.expensetracker.data.local.Category) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val rowIndex = findRowIndex(service, spreadsheetId, "Categories", oldName, "B")
+            if (rowIndex != null) {
+                val rowValues = listOf(category.id.toString(), category.name)
+                val body = ValueRange().setValues(listOf(rowValues))
+                val range = "Categories!A$rowIndex:B$rowIndex"
+                service.spreadsheets().values().update(spreadsheetId, range, body)
+                    .setValueInputOption("RAW")
+                    .execute()
+                Log.d(tag, "Updated category: $oldName -> ${category.name}")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to update category in sheet: $oldName", e)
+        }
+    }
+
+    /**
+     * Deletes a category from the "Categories" sheet.
+     */
+    suspend fun deleteCategoryFromSheet(categoryName: String) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val rowIndex = findRowIndex(service, spreadsheetId, "Categories", categoryName, "B")
+            if (rowIndex != null) {
+                val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+                val sheetId = spreadsheet.sheets.find { it.properties.title == "Categories" }?.properties?.sheetId ?: return@withContext
+
+                val deleteRequest = Request().setDeleteDimension(
+                    DeleteDimensionRequest().setRange(
+                        DimensionRange()
+                            .setSheetId(sheetId)
+                            .setDimension("ROWS")
+                            .setStartIndex(rowIndex - 1)
+                            .setEndIndex(rowIndex)
+                    )
+                )
+
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(listOf(deleteRequest))
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Deleted category: $categoryName")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to delete category from sheet: $categoryName", e)
+        }
+    }
+
+    /**
+     * Appends a new friend to the "Friends" sheet.
+     */
+    suspend fun addFriendToSheet(friend: com.nothing.expensetracker.data.local.Friend) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val now = java.text.SimpleDateFormat("dd-MMM-yyyy HH:mm", Locale.getDefault()).format(Date())
+            val rowValues = listOf(
+                friend.id.toString(),
+                friend.name,
+                "0",        // Total Debit
+                "0",        // Total Credit
+                "0",        // Outstanding Balance
+                "Settled",  // Status
+                now         // Last Updated
+            )
+
+            val body = ValueRange().setValues(listOf(rowValues))
+            service.spreadsheets().values().append(spreadsheetId, "Friends!A2", body)
+                .setValueInputOption("USER_ENTERED")
+                .execute()
+            Log.d(tag, "Appended new friend: ${friend.name} (ID: ${friend.id})")
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to add friend to sheet: ${friend.name}", e)
+        }
+    }
+
+    /**
+     * Updates an existing friend summary in the "Friends" sheet using Friend ID.
+     */
+    suspend fun updateFriendSummaryInSheet(friend: com.nothing.expensetracker.data.local.Friend) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            // 1. Get live balance from local engine
+            val balances = repository.getFriendBalances().first()
+            val balance = balances.find { it.friendName == friend.name } 
+                ?: com.nothing.expensetracker.data.local.FriendBalance(friend.name, 0.0, 0.0, 0.0)
+
+            val status = when {
+                balance.outstandingBalance > 0 -> "Friend Owes You"
+                balance.outstandingBalance < 0 -> "You Owe Friend"
+                else -> "Settled"
+            }
+
+            val now = java.text.SimpleDateFormat("dd-MMM-yyyy HH:mm", Locale.getDefault()).format(Date())
+
+            val rowValues = listOf(
+                friend.id.toString(),
+                friend.name,
+                balance.totalDebit.toString(),
+                balance.totalCredit.toString(),
+                balance.outstandingBalance.toString(),
+                status,
+                now
+            )
+
+            val body = ValueRange().setValues(listOf(rowValues))
+            val rowIndex = findRowIndex(service, spreadsheetId, "Friends", friend.id.toString())
+
+            if (rowIndex != null) {
+                val range = "Friends!A$rowIndex:G$rowIndex"
+                service.spreadsheets().values().update(spreadsheetId, range, body)
+                    .setValueInputOption("USER_ENTERED")
+                    .execute()
+                Log.d(tag, "Updated summary for ${friend.name} (ID: ${friend.id}) at row $rowIndex")
+            } else {
+                Log.w(tag, "Friend ID ${friend.id} not found for update. Appending instead.")
+                addFriendToSheet(friend)
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to update friend summary for ${friend.name}", e)
+        }
+    }
+
+    /**
+     * Deletes a friend row from the "Friends" sheet.
+     */
+    suspend fun deleteFriendFromSheet(friendId: String) = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext
+
+        try {
+            val rowIndex = findRowIndex(service, spreadsheetId, "Friends", friendId)
+            if (rowIndex != null) {
+                val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+                val sheetId = spreadsheet.sheets.find { it.properties.title == "Friends" }?.properties?.sheetId ?: return@withContext
+
+                val deleteRequest = Request().setDeleteDimension(
+                    DeleteDimensionRequest().setRange(
+                        DimensionRange()
+                            .setSheetId(sheetId)
+                            .setDimension("ROWS")
+                            .setStartIndex(rowIndex - 1)
+                            .setEndIndex(rowIndex)
+                    )
+                )
+
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(listOf(deleteRequest))
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                Log.d(tag, "Deleted friend ID $friendId from Friends sheet")
+            }
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to delete friend ID $friendId from sheet", e)
+        }
+    }
+
+    /**
+     * Updates an existing transaction in the "Transactions" sheet.
+     */
+    suspend fun updateTransactionInSheet(transaction: com.nothing.expensetracker.data.local.Expense): Boolean = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext false
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
+
+        try {
+            val rowIndex = findRowIndex(service, spreadsheetId, "Transactions", transaction.id.toString())
+            if (rowIndex == null) return@withContext false
+
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val formattedDate = dateFormat.format(Date(transaction.timestamp))
+
+            val values = listOf(
+                listOf(
+                    transaction.id.toString(),
+                    formattedDate,
+                    transaction.type,
+                    transaction.category,
+                    transaction.amount.toString(),
+                    transaction.paymentMethod,
+                    transaction.friendId ?: "",
+                    transaction.notes,
+                    transaction.timestamp.toString(),
+                    transaction.timestamp.toString(),
+                    "Synced"
+                )
+            )
+
+            val body = ValueRange().setValues(values)
+            val range = "Transactions!A$rowIndex:K$rowIndex"
+
+            service.spreadsheets().values().update(spreadsheetId, range, body)
+                .setValueInputOption("USER_ENTERED")
+                .execute()
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to update transaction in sheet", e)
+            false
+        }
+    }
+
+    /**
+     * Deletes a transaction row from the "Transactions" sheet.
+     */
+    suspend fun deleteTransactionFromSheet(transactionId: String): Boolean = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext false
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
+
+        try {
+            val rowIndex = findRowIndex(service, spreadsheetId, "Transactions", transactionId)
+            if (rowIndex != null) {
+                val spreadsheet = service.spreadsheets().get(spreadsheetId).execute()
+                val sheetId = spreadsheet.sheets.find { it.properties.title == "Transactions" }?.properties?.sheetId ?: return@withContext false
+
+                val deleteRequest = Request().setDeleteDimension(
+                    DeleteDimensionRequest().setRange(
+                        DimensionRange()
+                            .setSheetId(sheetId)
+                            .setDimension("ROWS")
+                            .setStartIndex(rowIndex - 1)
+                            .setEndIndex(rowIndex)
+                    )
+                )
+
+                val batchUpdate = BatchUpdateSpreadsheetRequest().setRequests(listOf(deleteRequest))
+                service.spreadsheets().batchUpdate(spreadsheetId, batchUpdate).execute()
+                true
+            } else false
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to delete transaction from sheet", e)
+            false
         }
     }
 }

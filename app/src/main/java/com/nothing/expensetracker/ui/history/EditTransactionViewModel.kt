@@ -23,17 +23,34 @@ class EditTransactionViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.getExpenseById(expenseId).collect {
-                _expense.value = it
+            if (expenseId == 0L) {
+                val firstCategory = repository.getAllCategories().first().firstOrNull() ?: "Other"
+                _expense.value = Expense(
+                    amount = 0.0,
+                    description = "",
+                    category = firstCategory,
+                    type = "Debit",
+                    paymentMethod = "UPI"
+                )
+            } else {
+                repository.getExpenseById(expenseId).collect {
+                    _expense.value = it
+                }
             }
         }
     }
 
     fun getAllFriends() = repository.getAllFriends()
 
+    fun getAllCategories() = repository.getAllCategories()
+
     fun updateExpense(updatedExpense: Expense) {
         viewModelScope.launch {
-            repository.updateExpense(updatedExpense)
+            if (updatedExpense.id == 0L) {
+                repository.insertExpense(updatedExpense)
+            } else {
+                repository.updateExpense(updatedExpense)
+            }
         }
     }
 }

@@ -20,7 +20,7 @@ interface FriendDao {
     suspend fun getFriendByName(name: String): Friend?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFriend(friend: Friend)
+    suspend fun insertFriend(friend: Friend): Long
 
     @Update
     suspend fun updateFriend(friend: Friend)

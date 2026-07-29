@@ -5,6 +5,8 @@ import androidx.room.Room
 import com.nothing.expensetracker.data.local.AppDatabase
 import com.nothing.expensetracker.data.local.ExpenseDao
 import com.nothing.expensetracker.data.local.FriendDao
+import com.nothing.expensetracker.data.local.CategoryDao
+import com.nothing.expensetracker.data.local.BudgetDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,5 +37,15 @@ object DatabaseModule {
     @Provides
     fun provideFriendDao(database: AppDatabase): FriendDao {
         return database.friendDao()
+    }
+
+    @Provides
+    fun provideCategoryDao(database: AppDatabase): CategoryDao {
+        return database.categoryDao()
+    }
+
+    @Provides
+    fun provideBudgetDao(database: AppDatabase): BudgetDao {
+        return database.budgetDao()
     }
 }

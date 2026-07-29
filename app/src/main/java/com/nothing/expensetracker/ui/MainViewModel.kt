@@ -18,8 +18,11 @@ import java.util.*
 import javax.inject.Inject
 
 data class DashboardData(
-    val currentBalance: Double = 0.0,
-    val openingBalance: Double = 0.0,
+    val bankBalance: Double = 0.0,
+    val cashBalance: Double = 0.0,
+    val totalAssets: Double = 0.0,
+    val openingBankBalance: Double = 0.0,
+    val openingCashBalance: Double = 0.0,
     val income: Double = 0.0,
     val expense: Double = 0.0,
     val todaySpending: Double = 0.0,
@@ -27,7 +30,8 @@ data class DashboardData(
     val monthSpending: Double = 0.0,
     val topCategories: List<CategoryExpense> = emptyList(),
     val recentTransactions: List<Expense> = emptyList(),
-    val hasTransactions: Boolean = false
+    val hasTransactions: Boolean = false,
+    val isAllSynced: Boolean = true
 )
 
 sealed class DashboardUiState {
@@ -48,6 +52,12 @@ class MainViewModel @Inject constructor(
     private val _selectedYear = MutableStateFlow(SimpleDateFormat("yyyy", Locale.getDefault()).format(Date()))
     val selectedYear: StateFlow<String> = _selectedYear
 
+    init {
+        viewModelScope.launch {
+            repository.seedDefaultCategories()
+        }
+    }
+
     val expenses: StateFlow<List<Expense>> = repository.getAllExpenses()
         .stateIn(
             scope = viewModelScope,
@@ -56,61 +66,84 @@ class MainViewModel @Inject constructor(
         )
 
     val uiState: StateFlow<DashboardUiState> = combine(
-        repository.getAllExpenses(),
-        repository.getTotalUpiBankCredits(),
-        repository.getTotalUpiBankDebits(),
-        appPrefs.openingBalance
-    ) { allExpenses, credits, debits, openingBalance ->
+        repository.getAllExpenses().distinctUntilChanged(),
+        repository.getTotalUpiBankCredits().distinctUntilChanged(),
+        repository.getTotalUpiBankDebits().distinctUntilChanged(),
+        repository.getTotalCashCredits().distinctUntilChanged(),
+        repository.getTotalCashDebits().distinctUntilChanged(),
+        appPrefs.openingBankBalance,
+        appPrefs.openingCashBalance
+    ) { flows ->
+        val allExpenses = flows[0] as List<Expense>
+        val bankCredits = flows[1] as? Double ?: 0.0
+        val bankDebits = flows[2] as? Double ?: 0.0
+        val cashCredits = flows[3] as? Double ?: 0.0
+        val cashDebits = flows[4] as? Double ?: 0.0
+        val opBank = flows[5] as Double
+        val opCash = flows[6] as Double
+
         if (allExpenses.isEmpty()) {
             return@combine DashboardUiState.Empty
         }
 
         val now = LocalDate.now()
         val zoneId = ZoneId.systemDefault()
-
-        // 1. Current Balance
-        val currentBalance = openingBalance + (credits ?: 0.0) - (debits ?: 0.0)
-
-        // 2. Income
-        val income = allExpenses.filter { it.type == "Credit" }.sumOf { it.amount }
-
-        // 3. Expense
-        val expenseTotal = allExpenses.filter { it.type == "Debit" }.sumOf { it.amount }
-
-        // 4. Today
-        val todaySpending = allExpenses.filter {
-            it.type == "Debit" && 
-            Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate().isEqual(now)
-        }.sumOf { it.amount }
-
-        // 5. Week
         val startOfWeek = now.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
-        val weekSpending = allExpenses.filter {
-            val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
-            it.type == "Debit" && (date.isEqual(startOfWeek) || date.isAfter(startOfWeek)) && (date.isEqual(now) || date.isBefore(now))
-        }.sumOf { it.amount }
-
-        // 6. Month
         val startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
-        val monthSpending = allExpenses.filter {
-            val date = Instant.ofEpochMilli(it.timestamp).atZone(zoneId).toLocalDate()
-            it.type == "Debit" && (date.isEqual(startOfMonth) || date.isAfter(startOfMonth)) && (date.isEqual(now) || date.isBefore(now))
-        }.sumOf { it.amount }
+
+        var income = 0.0
+        var expenseTotal = 0.0
+        var todaySpending = 0.0
+        var weekSpending = 0.0
+        var monthSpending = 0.0
+        val categoryMap = mutableMapOf<String, Double>()
+
+        allExpenses.forEach { expense ->
+            val amount = expense.amount
+            val isDebit = expense.type == "Debit"
+            
+            if (isDebit) {
+                expenseTotal += amount
+                categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
+                
+                val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
+                if (date.isEqual(now)) {
+                    todaySpending += amount
+                }
+                if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
+                    weekSpending += amount
+                }
+                if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
+                    monthSpending += amount
+                }
+            } else {
+                income += amount
+            }
+        }
+
+        // 1. Balances
+        val bankBalance = opBank + bankCredits - bankDebits
+        val cashBalance = opCash + cashCredits - cashDebits
+        val totalAssets = bankBalance + cashBalance
 
         // 7. Category Breakdown
-        val topCategories = allExpenses.filter { it.type == "Debit" }
-            .groupBy { it.category }
-            .map { (category, expenses) -> CategoryExpense(category, expenses.sumOf { it.amount }) }
+        val topCategories = categoryMap.map { (cat, total) -> CategoryExpense(cat, total) }
             .sortedByDescending { it.totalAmount }
             .take(5)
 
         // 8. Recent Transactions
         val recentTransactions = allExpenses.take(5)
 
+        // 9. Global Sync Status
+        val isAllSynced = allExpenses.all { it.isSynced }
+
         DashboardUiState.Success(
             DashboardData(
-                currentBalance = currentBalance,
-                openingBalance = openingBalance,
+                bankBalance = bankBalance,
+                cashBalance = cashBalance,
+                totalAssets = totalAssets,
+                openingBankBalance = opBank,
+                openingCashBalance = opCash,
                 income = income,
                 expense = expenseTotal,
                 todaySpending = todaySpending,
@@ -118,7 +151,8 @@ class MainViewModel @Inject constructor(
                 monthSpending = monthSpending,
                 topCategories = topCategories,
                 recentTransactions = recentTransactions,
-                hasTransactions = true
+                hasTransactions = true,
+                isAllSynced = isAllSynced
             )
         )
     }.stateIn(

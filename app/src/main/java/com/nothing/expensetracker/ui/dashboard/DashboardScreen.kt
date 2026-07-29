@@ -1,6 +1,7 @@
 package com.nothing.expensetracker.ui.dashboard
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -10,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -17,7 +19,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nothing.expensetracker.ui.settings.BudgetViewModel
 import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
 import com.nothing.expensetracker.data.local.Expense
@@ -35,7 +40,11 @@ const val GITHUB_REPO_USER = "abhishekmannatharaj"
 const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 
 @Composable
-fun DashboardScreen(viewModel: MainViewModel = hiltViewModel()) {
+fun DashboardScreen(
+    onNavigateToAddTransaction: () -> Unit,
+    onNavigateToBudget: () -> Unit,
+    viewModel: MainViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     
@@ -47,49 +56,71 @@ fun DashboardScreen(viewModel: MainViewModel = hiltViewModel()) {
             DashboardLoadingState()
         }
         is DashboardUiState.Empty -> {
-            DashboardEmptyState()
+            DashboardEmptyState(onAddClick = onNavigateToAddTransaction)
         }
         is DashboardUiState.Success -> {
             val dashboardData = state.data
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                DashboardHeader()
+            Scaffold(
+                floatingActionButton = {
+                    FloatingActionButton(
+                        onClick = onNavigateToAddTransaction,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.Black,
+                        shape = CircleShape
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Add Transaction"
+                        )
+                    }
+                },
+                containerColor = Color.Black
+            ) { paddingValues ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    DashboardHeader(isSynced = dashboardData.isAllSynced)
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                CurrentBalanceCard(
-                    balance = dashboardData.currentBalance,
-                    openingBalance = dashboardData.openingBalance
-                )
+                    AssetsOverviewCard(
+                        totalAssets = dashboardData.totalAssets,
+                        bankBalance = dashboardData.bankBalance,
+                        cashBalance = dashboardData.cashBalance
+                    )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                IncomeExpenseCards(income = dashboardData.income, expense = dashboardData.expense)
+                    BudgetSummaryCard(onClick = onNavigateToBudget)
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                SummaryCards(
-                    today = dashboardData.todaySpending,
-                    week = dashboardData.weekSpending,
-                    month = dashboardData.monthSpending
-                )
+                    IncomeExpenseCards(income = dashboardData.income, expense = dashboardData.expense)
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // Category Breakdown Card
-                CategoryBreakdownCard(
-                    totalExpense = dashboardData.expense,
-                    topCategories = dashboardData.topCategories
-                )
+                    SummaryCards(
+                        today = dashboardData.todaySpending,
+                        week = dashboardData.weekSpending,
+                        month = dashboardData.monthSpending
+                    )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                RecentTransactionsCard(transactions = dashboardData.recentTransactions)
+                    // Category Breakdown Card
+                    CategoryBreakdownCard(
+                        totalExpense = dashboardData.expense,
+                        topCategories = dashboardData.topCategories
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    RecentTransactionsCard(transactions = dashboardData.recentTransactions)
+                }
             }
         }
     }
@@ -121,7 +152,7 @@ fun DashboardLoadingState() {
 }
 
 @Composable
-fun DashboardEmptyState() {
+fun DashboardEmptyState(onAddClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -144,7 +175,7 @@ fun DashboardEmptyState() {
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = { /* TODO: Open Add Transaction */ },
+            onClick = onAddClick,
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Add Transaction")
@@ -153,7 +184,8 @@ fun DashboardEmptyState() {
 }
 
 @Composable
-fun DashboardHeader() {
+fun DashboardHeader(isSynced: Boolean) {
+    val currentDate = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date()) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,7 +201,7 @@ fun DashboardHeader() {
                 color = Color.White
             )
             Text(
-                text = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date()),
+                text = currentDate,
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray
             )
@@ -187,10 +219,10 @@ fun DashboardHeader() {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(Color.Green, CircleShape)
+                        .background(if (isSynced) Color.Green else Color.Yellow, CircleShape)
                 )
                 Text(
-                    text = "Synced",
+                    text = if (isSynced) "Synced" else "Syncing",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Medium
@@ -201,7 +233,11 @@ fun DashboardHeader() {
 }
 
 @Composable
-fun CurrentBalanceCard(balance: Double, openingBalance: Double) {
+fun AssetsOverviewCard(
+    totalAssets: Double,
+    bankBalance: Double,
+    cashBalance: Double
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -214,23 +250,53 @@ fun CurrentBalanceCard(balance: Double, openingBalance: Double) {
             modifier = Modifier.padding(24.dp)
         ) {
             Text(
-                text = "Current Balance",
+                text = "Total Assets",
                 style = MaterialTheme.typography.titleMedium,
                 color = Color.Gray
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "₹%,.0f".format(Locale.getDefault(), balance),
+                text = "₹%,.0f".format(Locale.getDefault(), totalAssets),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Opening Balance: ₹%,.0f".format(Locale.getDefault(), openingBalance),
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.DarkGray
-            )
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        text = "Bank Balance",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "₹%,.0f".format(Locale.getDefault(), bankBalance),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "Cash Balance",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "₹%,.0f".format(Locale.getDefault(), cashBalance),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
         }
     }
 }
@@ -302,5 +368,66 @@ fun CheckForAppUpdates(context: android.content.Context) {
             },
             shape = RoundedCornerShape(20.dp)
         )
+    }
+}
+
+@Composable
+fun BudgetSummaryCard(
+    onClick: () -> Unit,
+    viewModel: BudgetViewModel = hiltViewModel()
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val usage = uiState.overallUsage
+
+    if (usage.budget != null) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "Monthly Budget", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                    Text(
+                        text = "₹%,.0f".format(usage.budget.amount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                LinearProgressIndicator(
+                    progress = { usage.percentage },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
+                    color = if (usage.percentage > 0.9f) Color.Red else MaterialTheme.colorScheme.primary,
+                    trackColor = Color.DarkGray
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "₹%,.0f spent".format(usage.spent),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "₹%,.0f left".format(usage.remaining),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (usage.remaining < 1000) Color.Red else Color.Gray
+                    )
+                }
+            }
+        }
     }
 }

@@ -26,13 +26,28 @@ interface ExpenseDao {
 
     @Query("""
         SELECT * FROM expenses 
-        WHERE category LIKE '%' || :query || '%' 
-        OR notes LIKE '%' || :query || '%' 
-        OR friendId LIKE '%' || :query || '%' 
-        OR paymentMethod LIKE '%' || :query || '%'
-        ORDER BY timestamp DESC
+        WHERE (:query = '' OR category LIKE '%' || :query || '%' OR notes LIKE '%' || :query || '%' OR friendId LIKE '%' || :query || '%' OR paymentMethod LIKE '%' || :query || '%')
+        AND (:type = 'All' OR type = :type)
+        AND (:method = 'All' OR paymentMethod = :method)
+        AND (:category = 'All' OR category = :category)
+        AND (timestamp >= :startTime AND timestamp <= :endTime)
+        ORDER BY 
+            CASE WHEN :sort = 'NEWEST' THEN timestamp END DESC,
+            CASE WHEN :sort = 'OLDEST' THEN timestamp END ASC,
+            CASE WHEN :sort = 'HIGHEST_AMOUNT' THEN amount END DESC,
+            CASE WHEN :sort = 'LOWEST_AMOUNT' THEN amount END ASC,
+            CASE WHEN :sort = 'CATEGORY_AZ' THEN category END ASC,
+            CASE WHEN :sort = 'CATEGORY_ZA' THEN category END DESC
     """)
-    fun searchExpenses(query: String): Flow<List<Expense>>
+    fun getFilteredExpenses(
+        query: String,
+        type: String,
+        method: String,
+        category: String,
+        sort: String,
+        startTime: Long = 0,
+        endTime: Long = Long.MAX_VALUE
+    ): Flow<List<Expense>>
 
     @Query("SELECT * FROM expenses WHERE id = :id")
     fun getExpenseById(id: Long): Flow<Expense?>
@@ -76,6 +91,24 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE friendId = :friendName AND category = 'Friends' ORDER BY timestamp DESC")
     fun getTransactionsByFriend(friendName: String): Flow<List<Expense>>
 
+    @Query("UPDATE expenses SET friendId = NULL WHERE friendId = :friendName")
+    suspend fun nullifyFriendId(friendName: String)
+
+    @Query("UPDATE expenses SET friendId = :newName WHERE friendId = :oldName")
+    suspend fun updateFriendNameInTransactions(oldName: String, newName: String)
+
+    @Query("UPDATE expenses SET category = :newName WHERE category = :oldName")
+    suspend fun updateCategoryNameInTransactions(oldName: String, newName: String)
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE category = :categoryName")
+    suspend fun countExpensesByCategory(categoryName: String): Int
+
+    @Query("SELECT * FROM expenses WHERE category = :categoryName")
+    suspend fun getExpensesByCategoryName(categoryName: String): List<Expense>
+
+    @Query("DELETE FROM expenses WHERE category = :categoryName")
+    suspend fun deleteExpensesByCategory(categoryName: String)
+
     @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>
 
@@ -95,4 +128,10 @@ interface ExpenseDao {
 
     @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
     fun getTotalUpiBankDebits(): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Credit' AND paymentMethod = 'Cash'")
+    fun getTotalCashCredits(): Flow<Double?>
+
+    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND paymentMethod = 'Cash'")
+    fun getTotalCashDebits(): Flow<Double?>
 }
