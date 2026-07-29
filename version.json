@@ -2,7 +2,7 @@
   "versionCode": 330,
   "versionName": "3.3.0",
   "forceUpdate": false,
-  "apkUrl": "https://github.com/YOUR_USERNAME/YOUR_REPOSITORY/releases/download/v3.2.1/EssentialExpenseTracker-v3.2.1.apk",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.3.0/app-release.apk",
   "releaseNotes": [
     "Improved Google Sheets Sync",
     "Performance improvements",
