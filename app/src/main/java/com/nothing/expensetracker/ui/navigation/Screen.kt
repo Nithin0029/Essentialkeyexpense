@@ -16,6 +16,13 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     object EditTransaction : Screen("edit_transaction/{expenseId}", "Edit Transaction", Icons.Default.History)
     object FriendDetail : Screen("friend_detail/{friendName}", "Friend Ledger", Icons.Default.Group)
+    object CreateMpin : Screen("create_mpin", "Create MPIN", Icons.Default.Settings)
+    object ConfirmMpin : Screen("confirm_mpin/{mpin}", "Confirm MPIN", Icons.Default.Settings)
+    object UnlockApp : Screen("unlock_app", "Unlock", Icons.Default.Settings)
+    object ChangeMpin : Screen("change_mpin", "Change MPIN", Icons.Default.Settings)
+    object CategoryManagement : Screen("category_management", "Categories", Icons.Default.Settings)
+    object OverallBudget : Screen("overall_budget", "Monthly Budget", Icons.Default.Settings)
+    object CategoryBudgets : Screen("category_budgets", "Category Budgets", Icons.Default.Settings)
 }
 
 val bottomNavItems = listOf(

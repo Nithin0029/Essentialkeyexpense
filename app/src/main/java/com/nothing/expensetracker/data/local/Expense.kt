@@ -1,9 +1,19 @@
 package com.nothing.expensetracker.data.local
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "expenses")
+@Immutable
+@Entity(
+    tableName = "expenses",
+    indices = [
+        androidx.room.Index(value = ["friendId"]),
+        androidx.room.Index(value = ["timestamp"]),
+        androidx.room.Index(value = ["category"]),
+        androidx.room.Index(value = ["type"])
+    ]
+)
 data class Expense(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amount: Double,

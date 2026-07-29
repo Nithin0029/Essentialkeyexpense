@@ -32,7 +32,12 @@ fun EditTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Transaction", fontWeight = FontWeight.Bold) },
+                title = { 
+                    Text(
+                        text = if (expenseState?.id == 0L) "Add Transaction" else "Edit Transaction", 
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -48,11 +53,13 @@ fun EditTransactionScreen(
         containerColor = Color.Black
     ) { paddingValues ->
         val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
+        val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
         expenseState?.let { expense ->
             EditTransactionContent(
                 modifier = Modifier.padding(paddingValues),
                 expense = expense,
                 friends = friends,
+                categories = categories,
                 onSave = { updatedExpense ->
                     viewModel.updateExpense(updatedExpense)
                     onNavigateBack()
@@ -74,6 +81,7 @@ fun EditTransactionContent(
     modifier: Modifier = Modifier,
     expense: Expense,
     friends: List<String>,
+    categories: List<String>,
     onSave: (Expense) -> Unit,
     onCancel: () -> Unit,
     onNavigateToFriends: () -> Unit
@@ -86,7 +94,6 @@ fun EditTransactionContent(
     var friendId by remember { mutableStateOf(expense.friendId ?: "") }
     var timestamp by remember { mutableLongStateOf(expense.timestamp) }
 
-    val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
     val types = listOf("Debit", "Credit")
     val methods = listOf("UPI", "Cash", "Bank")
 

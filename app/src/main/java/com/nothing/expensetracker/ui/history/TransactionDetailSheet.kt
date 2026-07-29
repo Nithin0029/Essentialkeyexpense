@@ -74,6 +74,8 @@ fun TransactionDetailSheet(
                 DetailRow(label = "Payment Method", value = expense.paymentMethod)
                 if (!expense.friendId.isNullOrBlank()) {
                     DetailRow(label = "Friend", value = expense.friendId)
+                } else if (expense.category == "Friends") {
+                    DetailRow(label = "Friend", value = "Deleted Friend")
                 }
                 DetailRow(
                     label = "Date",

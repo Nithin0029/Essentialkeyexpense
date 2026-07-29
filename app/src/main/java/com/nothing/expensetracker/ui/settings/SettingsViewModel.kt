@@ -27,7 +27,8 @@ class SettingsViewModel @Inject constructor(
     private val spreadsheetManager: SpreadsheetManager,
 ) : ViewModel() {
 
-    val openingBalance: StateFlow<Double> = appPrefs.openingBalance
+    val openingBankBalance: StateFlow<Double> = appPrefs.openingBankBalance
+    val openingCashBalance: StateFlow<Double> = appPrefs.openingCashBalance
     val authState: StateFlow<AuthState> = googleAuthManager.authState
 
     private val _spreadsheetState = MutableStateFlow<SpreadsheetState>(SpreadsheetState.Idle)
@@ -44,8 +45,12 @@ class SettingsViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
-    fun updateOpeningBalance(balance: Double) {
-        appPrefs.setOpeningBalance(balance)
+    fun updateOpeningBankBalance(balance: Double) {
+        appPrefs.setOpeningBankBalance(balance)
+    }
+
+    fun updateOpeningCashBalance(balance: Double) {
+        appPrefs.setOpeningCashBalance(balance)
     }
 
     fun getSignInIntent() = googleAuthManager.getSignInIntent()

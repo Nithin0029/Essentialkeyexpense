@@ -34,12 +34,12 @@ class FriendsViewModel @Inject constructor(
     val uiState: StateFlow<FriendsUiState> = combine(
         _searchQuery.flatMapLatest { query ->
             if (query.isBlank()) {
-                repository.getAllFriends()
+                repository.getAllFriends().distinctUntilChanged()
             } else {
-                repository.searchFriends(query)
+                repository.searchFriends(query).distinctUntilChanged()
             }
         },
-        repository.getFriendBalances()
+        repository.getFriendBalances().distinctUntilChanged()
     ) { friends, balances ->
         val balanceMap = balances.associateBy { it.friendName }
         val friendsWithBalances = friends.map { friend ->
@@ -62,6 +62,8 @@ class FriendsViewModel @Inject constructor(
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
     }
+
+    suspend fun hasTransactions(name: String) = repository.hasTransactions(name)
 
     fun addFriend(name: String, onResult: (Boolean, String?) -> Unit) {
         val trimmedName = name.trim()
@@ -93,15 +95,16 @@ class FriendsViewModel @Inject constructor(
             if (existing != null && existing.id != friend.id) {
                 onResult(false, "Another friend with this name already exists")
             } else {
-                repository.updateFriend(friend.copy(name = trimmedName, updatedAt = System.currentTimeMillis()))
+                repository.updateFriend(friend.name, friend.copy(name = trimmedName, updatedAt = System.currentTimeMillis()))
                 onResult(true, null)
             }
         }
     }
 
-    fun deleteFriend(friend: Friend) {
+    fun deleteFriend(friend: Friend, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             repository.deleteFriend(friend)
+            onResult(true, null)
         }
     }
 }
