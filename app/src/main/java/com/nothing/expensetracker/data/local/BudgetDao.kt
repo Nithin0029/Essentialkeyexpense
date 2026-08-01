@@ -16,9 +16,6 @@ interface BudgetDao {
     @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS NOT NULL")
     fun getCategoryBudgets(month: Int, year: Int): Flow<List<Budget>>
 
-    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName = :categoryName LIMIT 1")
-    suspend fun getBudgetByCategory(categoryName: String, month: Int, year: Int): Budget?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBudget(budget: Budget)
 

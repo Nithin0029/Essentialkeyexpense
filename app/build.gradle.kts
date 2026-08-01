@@ -33,6 +33,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     packaging {
@@ -70,8 +71,6 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.hilt.compiler)
-    ksp(libs.hilt.compiler)
-    ksp(libs.androidx.hilt.compiler)
 
     // WorkManager
     implementation(libs.androidx.work.runtime.ktx)
@@ -83,6 +82,12 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     implementation(libs.hilt.navigation.compose)
 
+    // Networking for Updates
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging)
+
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -90,6 +95,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation("com.google.android.gms:play-services-auth:...")
     implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
 }

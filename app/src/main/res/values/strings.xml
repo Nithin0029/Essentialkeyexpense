@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Essential Expense Tracker</string>
+    <string name="default_web_client_id">848063972070-bhpcv1lanumj9r0v73lee9m12cbspt07.apps.googleusercontent.com</string>
 </resources>

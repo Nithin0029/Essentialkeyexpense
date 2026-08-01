@@ -37,7 +37,15 @@ class ExpenseRepository @Inject constructor(
     fun getExpenseById(id: Long) = expenseDao.getExpenseById(id)
 
     suspend fun insertExpense(expense: Expense) {
-        expenseDao.insertExpense(expense)
+        val id = expenseDao.insertExpense(expense)
+        val insertedExpense = expense.copy(id = id)
+        
+        // Attempt direct sync
+        val syncSuccess = spreadsheetManagerProvider.get().addTransactionToSheet(insertedExpense)
+        if (syncSuccess) {
+            expenseDao.markAsSynced(id)
+        }
+
         if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
@@ -62,7 +70,15 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun deleteExpense(expense: Expense) {
         expenseDao.deleteExpense(expense)
-        spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
+        
+        // Attempt to delete from sheet
+        val deletedFromSheet = spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
+        if (deletedFromSheet) {
+            android.util.Log.i("ExpenseRepository", "Transaction ${expense.id} deleted from Google Sheets.")
+        } else {
+            android.util.Log.w("ExpenseRepository", "Transaction ${expense.id} could not be deleted from Google Sheets (may be unsynced).")
+        }
+
         if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {

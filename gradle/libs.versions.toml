@@ -1,5 +1,5 @@
 [versions]
-agp = "9.2.1"
+agp = "9.3.1"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -10,7 +10,7 @@ kotlin = "2.2.10"
 composeBom = "2026.02.01"
 room = "2.8.4"
 hilt = "2.60.1"
-ksp = "2.2.10-2.0.2"
+ksp = "2.3.2"
 work = "2.11.2"
 googleAuth = "21.3.0"
 googleApiClient = "2.7.0"
@@ -20,6 +20,9 @@ hiltWork = "1.2.0"
 androidxHiltCompiler = "1.2.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
+retrofit = "2.11.0"
+okhttp = "4.12.0"
+gson = "2.11.0"
 
 [libraries]
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
@@ -52,6 +55,10 @@ play-services-auth = { group = "com.google.android.gms", name = "play-services-a
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
 google-api-services-sheets = { group = "com.google.apis", name = "google-api-services-sheets", version.ref = "googleSheets" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
 
 [plugins]
