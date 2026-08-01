@@ -43,7 +43,8 @@ sealed class DashboardUiState {
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: ExpenseRepository,
-    private val appPrefs: AppPrefs
+    private val appPrefs: AppPrefs,
+    private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SimpleDateFormat("MM", Locale.getDefault()).format(Date()))
@@ -55,6 +56,7 @@ class MainViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.seedDefaultCategories()
+            syncScheduler.scheduleSync() // Trigger sync for any pending offline transactions
         }
     }
 
@@ -74,13 +76,13 @@ class MainViewModel @Inject constructor(
         appPrefs.openingBankBalance,
         appPrefs.openingCashBalance
     ) { flows ->
-        val allExpenses = flows[0] as List<Expense>
+        val allExpenses = (flows[0] as? List<*>)?.filterIsInstance<Expense>() ?: emptyList()
         val bankCredits = flows[1] as? Double ?: 0.0
         val bankDebits = flows[2] as? Double ?: 0.0
         val cashCredits = flows[3] as? Double ?: 0.0
         val cashDebits = flows[4] as? Double ?: 0.0
-        val opBank = flows[5] as Double
-        val opCash = flows[6] as Double
+        val opBank = flows[5] as? Double ?: 0.0
+        val opCash = flows[6] as? Double ?: 0.0
 
         if (allExpenses.isEmpty()) {
             return@combine DashboardUiState.Empty

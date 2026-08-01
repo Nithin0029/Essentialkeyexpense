@@ -17,13 +17,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.*
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 @Singleton
 class SpreadsheetManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val appPrefs: AppPrefs,
-    private val repository: ExpenseRepository,
+    private val repositoryProvider: Provider<ExpenseRepository>,
 ) {
     private val tag = "SpreadsheetManager"
     private var isInitialized = false
@@ -78,7 +79,7 @@ class SpreadsheetManager @Inject constructor(
                 applyCellAlignment(service, id)
                 applyFinalPolish(service, id)
                 ensureInitialDataExists(service, id)
-                repository.seedDefaultCategories() // Ensure DB is seeded
+                repositoryProvider.get().seedDefaultCategories() // Ensure DB is seeded
                 ensureMasterDataExists(service, id)
                 isInitialized = true
                 Log.d(tag, "Spreadsheet initialized and cached for this session.")
@@ -90,7 +91,7 @@ class SpreadsheetManager @Inject constructor(
 
     private suspend fun ensureMasterDataExists(service: Sheets, spreadsheetId: String) {
         // 1. Initialize Categories
-        val localCategories = repository.getAllCategories().first()
+        val localCategories = repositoryProvider.get().getAllCategories().first()
         
         ensureListData(
             service = service,
@@ -100,7 +101,7 @@ class SpreadsheetManager @Inject constructor(
         )
 
         // 2. Initialize Friends
-        val localFriends = repository.getAllFriends().first()
+        val localFriends = repositoryProvider.get().getAllFriends().first()
         if (localFriends.isNotEmpty()) {
             ensureListData(
                 service = service,
@@ -996,7 +997,7 @@ class SpreadsheetManager @Inject constructor(
 
         try {
             // 1. Get live balance from local engine
-            val balances = repository.getFriendBalances().first()
+            val balances = repositoryProvider.get().getFriendBalances().first()
             val balance = balances.find { it.friendName == friend.name } 
                 ?: com.nothing.expensetracker.data.local.FriendBalance(friend.name, 0.0, 0.0, 0.0)
 
@@ -1065,6 +1066,59 @@ class SpreadsheetManager @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e(tag, "Failed to delete friend ID $friendId from sheet", e)
+        }
+    }
+
+    /**
+     * Appends a new transaction to the "Transactions" sheet.
+     * Returns true if successful.
+     */
+    suspend fun addTransactionToSheet(transaction: com.nothing.expensetracker.data.local.Expense): Boolean = withContext(Dispatchers.IO) {
+        Log.d(tag, "Starting sync for transaction: ${transaction.id} (${transaction.category})")
+        val service = getSheetsService() ?: run {
+            Log.e(tag, "Failed to start sync: Google Sheets service unavailable")
+            return@withContext false
+        }
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: run {
+            Log.e(tag, "Failed to start sync: Spreadsheet ID missing")
+            return@withContext false
+        }
+
+        try {
+            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            val formattedDate = dateFormat.format(Date(transaction.timestamp))
+
+            val rowValues = listOf(
+                listOf(
+                    transaction.id.toString(),            // 1. Transaction ID
+                    formattedDate,                        // 2. Date
+                    transaction.type,                     // 3. Type
+                    transaction.category,                 // 4. Category
+                    transaction.amount.toString(),        // 5. Amount
+                    transaction.paymentMethod,            // 6. Payment Method
+                    transaction.friendId ?: "",           // 7. Friend Name
+                    transaction.notes,                    // 8. Notes
+                    transaction.timestamp.toString(),     // 9. Created At
+                    transaction.timestamp.toString(),     // 10. Updated At
+                    "Synced"                              // 11. Sync Status
+                )
+            )
+
+            val body = ValueRange().setValues(rowValues)
+            Log.d(tag, "Sending API request to append row to 'Transactions' sheet")
+            
+            val response = service.spreadsheets().values()
+                .append(spreadsheetId, "Transactions!A2", body)
+                .setValueInputOption("USER_ENTERED")
+                .execute()
+            
+            Log.d(tag, "Google Sheets API Response: $response")
+            Log.i(tag, "Transaction ${transaction.id} synced successfully.")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "Failed to sync transaction ${transaction.id} to Google Sheets", e)
+            e.printStackTrace()
+            false
         }
     }
 

@@ -1,17 +1,21 @@
 # Build outputs
 /build/
-app/build/
+**/build/
+/out/
 
 # Gradle
 .gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.navigation/
 
 # IntelliJ IDEA / Android Studio
 .idea/
 *.iml
 *.iws
 *.ipr
-/out/
-.navigation/
+*.ids
+.shelf/
 capture.png
 
 # Kotlin
@@ -33,6 +37,9 @@ cert.der
 # Build Artifacts
 *.apk
 *.aab
+*.ap_
+*.dex
+*.class
 
 # OS-specific files
 .DS_Store
@@ -45,17 +52,26 @@ Thumbs.db
 
 # Captures
 /captures/
+*.hprof
 
 # External native builds
 .externalNativeBuild/
 .cxx/
 
 # Firebase / Google Services
+# Note: Keep google-services.json if you want it tracked, but it's often ignored for security.
 app/google-services.json
 
 # Service Accounts / Keys
 *.json
 !google-services.template.json
+!version.json
 
 # AI Assistant Artifacts
 .artifacts/
+
+# Others
+*.tmp
+*.bak
+*.swp
+*~
