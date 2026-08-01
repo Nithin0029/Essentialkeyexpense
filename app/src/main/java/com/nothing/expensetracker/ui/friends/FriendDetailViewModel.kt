@@ -65,7 +65,7 @@ class FriendDetailViewModel @Inject constructor(
                 friendId = friendName,
                 notes = notes,
                 timestamp = System.currentTimeMillis(),
-                isSynced = false
+                syncStatus = "Pending"
             )
             expenseRepository.insertExpense(expense)
             syncScheduler.scheduleSync()

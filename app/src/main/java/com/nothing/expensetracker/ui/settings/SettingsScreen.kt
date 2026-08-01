@@ -123,12 +123,19 @@ fun SettingsScreen(
             GoogleSyncSettingsCard(
                 authState = authState,
                 spreadsheetState = spreadsheetState,
+                unsyncedCount = viewModel.unsyncedCount.collectAsState().value,
+                syncedCount = viewModel.syncedCount.collectAsState().value,
+                failedCount = viewModel.failedCount.collectAsState().value,
+                lastSyncTime = viewModel.lastSyncTime.collectAsState().value,
                 onConnect = {
                     googleSignInLauncher.launch(viewModel.getSignInIntent())
                 },
                 onDisconnect = {
                     viewModel.signOut()
                 },
+                onSyncNow = {
+                    viewModel.syncNow()
+                }
             )
 
             CategoryManagementCard(
@@ -330,8 +337,13 @@ fun MpinVerifyDialog(
 fun GoogleSyncSettingsCard(
     authState: AuthState,
     spreadsheetState: SpreadsheetState,
+    unsyncedCount: Int,
+    syncedCount: Int,
+    failedCount: Int,
+    lastSyncTime: Long?,
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onSyncNow: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -450,6 +462,27 @@ fun GoogleSyncSettingsCard(
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                             SettingRow(label = "Cloud Database", value = "Connected")
                             SettingRow(label = "Database Name", value = spreadsheetState.name)
+
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                            
+                            SyncStatRow(label = "Synced", value = syncedCount.toString(), color = Color(0xFF4CAF50))
+                            SyncStatRow(label = "Pending", value = unsyncedCount.toString(), color = Color(0xFFFFC107))
+                            SyncStatRow(label = "Failed", value = failedCount.toString(), color = Color(0xFFF44336))
+                            
+                            val syncTimeStr = lastSyncTime?.let {
+                                java.text.SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(it))
+                            } ?: "Never"
+                            SettingRow(label = "Last Sync", value = syncTimeStr)
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = onSyncNow,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                enabled = unsyncedCount > 0 || failedCount > 0
+                            ) {
+                                Text("Sync Now")
+                            }
                         }
                         is SpreadsheetState.Error -> {
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
@@ -539,6 +572,33 @@ fun FinancialSettingsCard(
                 label = "Date Format",
                 value = "DD/MM/YYYY",
                 action = null
+            )
+        }
+    }
+}
+
+@Composable
+fun SyncStatRow(
+    label: String,
+    value: String,
+    color: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+        Surface(
+            color = color.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(4.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
     }

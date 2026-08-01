@@ -36,75 +36,114 @@ class ExpenseRepository @Inject constructor(
 
     fun getExpenseById(id: Long) = expenseDao.getExpenseById(id)
 
-    suspend fun insertExpense(expense: Expense) {
-        val id = expenseDao.insertExpense(expense)
-        val insertedExpense = expense.copy(id = id)
+    suspend fun insertExpense(expense: Expense): Long {
+        val id = expenseDao.insertExpense(expense.copy(syncStatus = "Pending"))
+        val insertedExpense = expense.copy(id = id, syncStatus = "Pending")
         
         // Attempt direct sync
         val syncSuccess = spreadsheetManagerProvider.get().addTransactionToSheet(insertedExpense)
         if (syncSuccess) {
-            expenseDao.markAsSynced(id)
+            expenseDao.updateSyncStatus(id, "Synced", System.currentTimeMillis(), null)
+        } else {
+            expenseDao.updateSyncStatus(id, "Pending", System.currentTimeMillis(), "Initial sync failed")
         }
 
         if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
-                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend)
+                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = id)
             }
         }
+        return id
     }
 
     suspend fun updateExpense(expense: Expense) {
-        expenseDao.updateExpense(expense)
+        expenseDao.updateExpense(expense.copy(syncStatus = "Pending"))
         val syncSuccess = spreadsheetManagerProvider.get().updateTransactionInSheet(expense)
         if (syncSuccess) {
-            expenseDao.markAsSynced(expense.id)
+            expenseDao.updateSyncStatus(expense.id, "Synced", System.currentTimeMillis(), null)
+        } else {
+            expenseDao.updateSyncStatus(expense.id, "Pending", System.currentTimeMillis(), "Update sync failed")
         }
         if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
-                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend)
+                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = expense.id)
             }
         }
     }
 
     suspend fun deleteExpense(expense: Expense) {
-        expenseDao.deleteExpense(expense)
+        // Soft delete locally first
+        val deletedExpense = expense.copy(syncStatus = "Deleted")
+        expenseDao.updateExpense(deletedExpense)
         
-        // Attempt to delete from sheet
-        val deletedFromSheet = spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
-        if (deletedFromSheet) {
-            android.util.Log.i("ExpenseRepository", "Transaction ${expense.id} deleted from Google Sheets.")
+        // Attempt immediate cloud deletion
+        val syncSuccess = spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
+        if (syncSuccess) {
+            deleteExpensePermanently(expense)
+            android.util.Log.i("ExpenseRepository", "Transaction ${expense.id} deleted from cloud and locally.")
         } else {
-            android.util.Log.w("ExpenseRepository", "Transaction ${expense.id} could not be deleted from Google Sheets (may be unsynced).")
+            android.util.Log.w("ExpenseRepository", "Transaction ${expense.id} cloud deletion failed. Queued for retry.")
         }
 
         if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
-                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend)
+                spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = expense.id)
             }
         }
     }
 
+    suspend fun deleteExpensePermanently(expense: Expense) {
+        expenseDao.deleteExpense(expense)
+    }
+
     suspend fun getUnsyncedExpenses() = expenseDao.getUnsyncedExpenses()
 
-    suspend fun markAsSynced(id: Long) = expenseDao.markAsSynced(id)
+    suspend fun updateSyncStatus(id: Long, status: String, attempt: Long, error: String?) = 
+        expenseDao.updateSyncStatus(id, status, attempt, error)
+
+    fun getUnsyncedCount() = expenseDao.getUnsyncedCount()
+    fun getSyncedCount() = expenseDao.getSyncedCount()
+    fun getFailedCount() = expenseDao.getFailedCount()
+    fun getLastSyncTime() = expenseDao.getLastSyncTime()
 
     // Category Management
     fun getCategories() = categoryDao.getAllCategories()
 
     suspend fun insertCategory(category: Category) {
-        categoryDao.insertCategory(category)
-        spreadsheetManagerProvider.get().addCategoryToSheet(category)
+        val categoryWithPending = category.copy(syncStatus = "Pending")
+        val id = categoryDao.insertCategory(categoryWithPending)
+        
+        // Handle IGNORE case: if ID is -1, the category already exists
+        if (id == -1L) {
+            android.util.Log.d("ExpenseRepository", "Category '${category.name}' already exists locally. Skipping insert.")
+            return
+        }
+
+        val finalCategory = categoryWithPending.copy(id = id)
+        val syncSuccess = spreadsheetManagerProvider.get().addCategoryToSheet(finalCategory)
+        if (syncSuccess) {
+            categoryDao.updateSyncStatus(finalCategory.id, "Synced", System.currentTimeMillis(), null)
+        } else {
+            categoryDao.updateSyncStatus(finalCategory.id, "Pending", System.currentTimeMillis(), "Initial sync failed")
+        }
     }
 
     suspend fun updateCategory(oldName: String, category: Category) {
-        if (oldName != category.name) {
-            expenseDao.updateCategoryNameInTransactions(oldName, category.name)
+        val updatedCategory = category.copy(syncStatus = "Pending")
+        if (oldName != updatedCategory.name) {
+            expenseDao.updateCategoryNameInTransactions(oldName, updatedCategory.name)
         }
-        categoryDao.updateCategory(category)
-        spreadsheetManagerProvider.get().updateCategoryInSheet(oldName, category)
+        categoryDao.updateCategory(updatedCategory)
+        
+        val syncSuccess = spreadsheetManagerProvider.get().updateCategoryInSheet(oldName, updatedCategory)
+        if (syncSuccess) {
+            categoryDao.updateSyncStatus(updatedCategory.id, "Synced", System.currentTimeMillis(), null)
+        } else {
+            categoryDao.updateSyncStatus(updatedCategory.id, "Pending", System.currentTimeMillis(), "Update sync failed")
+        }
     }
 
     suspend fun deleteCategory(category: Category) {
@@ -112,9 +151,21 @@ class ExpenseRepository @Inject constructor(
 
         val count = expenseDao.countExpensesByCategory(category.name)
         if (count == 0) {
-            categoryDao.deleteCategory(category)
-            spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
+            // Soft delete locally
+            val deletedCategory = category.copy(syncStatus = "Deleted")
+            categoryDao.updateCategory(deletedCategory)
+            
+            val syncSuccess = spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
+            if (syncSuccess) {
+                deleteCategoryPermanently(category)
+            } else {
+                categoryDao.updateSyncStatus(category.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
+            }
         }
+    }
+
+    suspend fun deleteCategoryPermanently(category: Category) {
+        categoryDao.deleteCategory(category)
     }
 
     suspend fun isCategoryInUse(categoryName: String): Boolean {
@@ -130,51 +181,76 @@ class ExpenseRepository @Inject constructor(
     }
 
     suspend fun deleteCategoryAndMoveTransactions(category: Category, replacementCategoryName: String) {
-        // 1. Get affected transactions for sync baseline
         val affectedExpenses = expenseDao.getExpensesByCategoryName(category.name)
-        
-        // 2. Update local DB
         expenseDao.updateCategoryNameInTransactions(category.name, replacementCategoryName)
-        categoryDao.deleteCategory(category)
         
-        // 3. Sync to Sheets
-        spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
+        // Soft delete locally
+        val deletedCategory = category.copy(syncStatus = "Deleted")
+        categoryDao.updateCategory(deletedCategory)
+        
+        val syncSuccess = spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
+        if (syncSuccess) {
+            deleteCategoryPermanently(category)
+        } else {
+            categoryDao.updateSyncStatus(category.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
+        }
+        
         affectedExpenses.forEach { expense ->
-            spreadsheetManagerProvider.get().updateTransactionInSheet(expense.copy(category = replacementCategoryName))
+            updateExpense(expense.copy(category = replacementCategoryName))
         }
     }
 
     suspend fun deleteCategoryAndTransactions(category: Category) {
-        // 1. Get affected transaction IDs
         val affectedExpenses = expenseDao.getExpensesByCategoryName(category.name)
         
-        // 2. Update local DB
-        expenseDao.deleteExpensesByCategory(category.name)
-        categoryDao.deleteCategory(category)
+        // Mark all as deleted for sync
+        affectedExpenses.forEach { deleteExpense(it) }
         
-        // 3. Sync to Sheets
-        spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
-        affectedExpenses.forEach { expense ->
-            spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
+        // Soft delete locally
+        val deletedCategory = category.copy(syncStatus = "Deleted")
+        categoryDao.updateCategory(deletedCategory)
+        
+        val syncSuccess = spreadsheetManagerProvider.get().deleteCategoryFromSheet(category.name)
+        if (syncSuccess) {
+            deleteCategoryPermanently(category)
+        } else {
+            categoryDao.updateSyncStatus(category.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
         }
     }
 
     suspend fun seedDefaultCategories() {
-        if (categoryDao.countCategories() > 0) return
+        android.util.Log.d("CATEGORY_SYNC", "Initialization Started")
+        try {
+            val currentCount = categoryDao.countCategories()
+            if (currentCount > 0) {
+                android.util.Log.d("CATEGORY_SYNC", "Already Initialized | Count: $currentCount | Skipped")
+                return
+            }
 
-        val defaults = listOf(
-            "Home", "Food", "Snacks", "College", "Fuel", 
-            "Entertainment", "Medical", "Fitness", "Income", 
-            "Travel", "Shopping", "Friends", "Other"
-        )
-        defaults.forEach { name ->
-            categoryDao.insertCategory(Category(name = name, isSystem = true))
+            val defaults = listOf(
+                "Home", "Food", "Snacks", "College", "Fuel", 
+                "Entertainment", "Medical", "Fitness", "Income", 
+                "Travel", "Shopping", "Friends", "Other"
+            )
+            defaults.forEach { name ->
+                // Insert directly to DAO to avoid triggering the 'insertCategory' cloud sync logic during seeding
+                categoryDao.insertCategory(Category(
+                    name = name, 
+                    isSystem = true,
+                    syncStatus = "Synced" 
+                ))
+            }
+            android.util.Log.i("CATEGORY_SYNC", "Default Categories Inserted | Count: ${defaults.size}")
+        } catch (e: Exception) {
+            android.util.Log.e("CATEGORY_SYNC", "Critical error during seeding", e)
         }
     }
 
     fun getAllCategories() = categoryDao.getAllCategories().map { list -> list.map { it.name } }
 
     fun getAllFriends() = friendDao.getAllFriends().map { list -> list.map { it.name } }
+
+    suspend fun getFriendByName(name: String) = friendDao.getFriendByName(name)
 
     fun getFriendBalances() = expenseDao.getFriendBalances()
 
@@ -197,12 +273,47 @@ class ExpenseRepository @Inject constructor(
     fun getCategoryBudgets(month: Int, year: Int): Flow<List<Budget>> = budgetDao.getCategoryBudgets(month, year)
 
     suspend fun insertBudget(budget: Budget) {
-        budgetDao.insertBudget(budget)
-        spreadsheetManagerProvider.get().syncBudgetToSheet(budget)
+        val budgetWithPending = budget.copy(syncStatus = "Pending")
+        budgetDao.insertBudget(budgetWithPending)
+        
+        val syncSuccess = spreadsheetManagerProvider.get().syncBudgetToSheet(budgetWithPending)
+        
+        // Query back the auto-generated ID if needed (since REPLACE strategy is used)
+        val saved = budgetDao.getAllBudgets().find { 
+            it.categoryName == budget.categoryName && it.month == budget.month && it.year == budget.year 
+        }
+
+        if (syncSuccess) {
+            saved?.let { budgetDao.updateSyncStatus(it.id, "Synced", System.currentTimeMillis(), null) }
+        } else {
+            saved?.let { budgetDao.updateSyncStatus(it.id, "Pending", System.currentTimeMillis(), "Initial sync failed") }
+        }
     }
 
     suspend fun deleteBudget(budget: Budget) {
-        budgetDao.deleteBudget(budget)
-        spreadsheetManagerProvider.get().deleteBudgetFromSheet(budget.categoryName)
+        // Soft delete locally
+        val deletedBudget = budget.copy(syncStatus = "Deleted")
+        budgetDao.updateBudget(deletedBudget)
+        
+        val syncSuccess = spreadsheetManagerProvider.get().deleteBudgetFromSheet(budget.categoryName)
+        if (syncSuccess) {
+            deleteBudgetPermanently(budget)
+        } else {
+            budgetDao.updateSyncStatus(budget.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
+        }
     }
+
+    suspend fun deleteBudgetPermanently(budget: Budget) {
+        budgetDao.deleteBudget(budget)
+    }
+    
+    suspend fun getUnsyncedCategories() = categoryDao.getUnsyncedCategories()
+    suspend fun updateCategorySyncStatus(id: Long, status: String, attempt: Long, error: String?) = categoryDao.updateSyncStatus(id, status, attempt, error)
+    suspend fun purgeDeletedCategories() = categoryDao.purgeDeletedCategories()
+    fun getUnsyncedCategoryCount() = categoryDao.getUnsyncedCount()
+    
+    suspend fun getUnsyncedBudgets() = budgetDao.getUnsyncedBudgets()
+    suspend fun updateBudgetSyncStatus(id: Long, status: String, attempt: Long, error: String?) = budgetDao.updateSyncStatus(id, status, attempt, error)
+    suspend fun purgeDeletedBudgets() = budgetDao.purgeDeletedBudgets()
+    fun getUnsyncedBudgetCount() = budgetDao.getUnsyncedCount()
 }

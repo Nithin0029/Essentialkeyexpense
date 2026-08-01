@@ -27,4 +27,16 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun countCategories(): Int
+
+    @Query("SELECT * FROM categories WHERE syncStatus != 'Synced'")
+    suspend fun getUnsyncedCategories(): List<Category>
+
+    @Query("UPDATE categories SET syncStatus = :status, lastSyncAttempt = :attempt, syncError = :error WHERE id = :id")
+    suspend fun updateSyncStatus(id: Long, status: String, attempt: Long, error: String?)
+
+    @Query("DELETE FROM categories WHERE syncStatus = 'Deleted'")
+    suspend fun purgeDeletedCategories()
+
+    @Query("SELECT COUNT(*) FROM categories WHERE syncStatus = 'Pending' OR syncStatus = 'Failed' OR syncStatus = 'Deleted'")
+    fun getUnsyncedCount(): Flow<Int>
 }

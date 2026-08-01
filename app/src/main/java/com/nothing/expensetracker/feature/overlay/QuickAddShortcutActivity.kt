@@ -262,7 +262,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                 friendId = fId,
                 notes = notes,
                 timestamp = System.currentTimeMillis(),
-                isSynced = false
+                syncStatus = "Pending"
             )
             repository.insertExpense(expense)
             syncScheduler.scheduleSync()

@@ -13,10 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Expense
+import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,6 +30,21 @@ fun EditTransactionScreen(
     viewModel: EditTransactionViewModel = hiltViewModel()
 ) {
     val expenseState by viewModel.expense.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.uiEvent.collect { event ->
+            when (event) {
+                is EditTransactionViewModel.UiEvent.Success -> {
+                    onNavigateBack()
+                }
+                is EditTransactionViewModel.UiEvent.Info -> {
+                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
+                    onNavigateBack()
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -62,7 +79,6 @@ fun EditTransactionScreen(
                 categories = categories,
                 onSave = { updatedExpense ->
                     viewModel.updateExpense(updatedExpense)
-                    onNavigateBack()
                 },
                 onCancel = onNavigateBack,
                 onNavigateToFriends = onNavigateToFriends
@@ -378,7 +394,7 @@ fun EditTransactionContent(
                             notes = notes,
                             friendId = if (category == "Friends") friendId else null,
                             timestamp = timestamp,
-                            isSynced = false // Mark for re-sync
+                            syncStatus = "Pending" // Mark for sync
                         ))
                     }
                 },

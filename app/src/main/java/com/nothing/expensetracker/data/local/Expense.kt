@@ -25,5 +25,7 @@ data class Expense(
     val notes: String = "",
     val colorCode: String = "GENERAL",
     val timestamp: Long = System.currentTimeMillis(),
-    val isSynced: Boolean = false
+    val syncStatus: String = "Pending", // "Pending", "Syncing", "Synced", "Failed"
+    val lastSyncAttempt: Long = 0,
+    val syncError: String? = null
 )

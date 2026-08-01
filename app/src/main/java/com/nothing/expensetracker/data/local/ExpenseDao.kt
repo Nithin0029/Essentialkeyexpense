@@ -64,11 +64,23 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE id = :expenseId")
     suspend fun deleteExpenseById(expenseId: Long)
 
-    @Query("SELECT * FROM expenses WHERE isSynced = 0")
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Synced'")
     suspend fun getUnsyncedExpenses(): List<Expense>
 
-    @Query("UPDATE expenses SET isSynced = 1 WHERE id = :id")
-    suspend fun markAsSynced(id: Long)
+    @Query("UPDATE expenses SET syncStatus = :status, lastSyncAttempt = :attempt, syncError = :error WHERE id = :id")
+    suspend fun updateSyncStatus(id: Long, status: String, attempt: Long, error: String?)
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Pending' OR syncStatus = 'Failed' OR syncStatus = 'Deleted'")
+    fun getUnsyncedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Synced'")
+    fun getSyncedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Failed'")
+    fun getFailedCount(): Flow<Int>
+
+    @Query("SELECT MAX(lastSyncAttempt) FROM expenses WHERE syncStatus = 'Synced'")
+    fun getLastSyncTime(): Flow<Long?>
 
     @Query("SELECT DISTINCT category FROM expenses ORDER BY category ASC")
     fun getAllCategories(): Flow<List<String>>

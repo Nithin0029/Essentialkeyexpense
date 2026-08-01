@@ -178,7 +178,7 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
                 notes = notes,
                 colorCode = color,
                 timestamp = System.currentTimeMillis(),
-                isSynced = false
+                syncStatus = "Pending"
             )
             repository.insertExpense(expense)
             syncScheduler.scheduleSync()

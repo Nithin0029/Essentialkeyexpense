@@ -3,20 +3,11 @@ package com.nothing.expensetracker.sync
 import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.*
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.sheets.v4.Sheets
-import com.google.api.services.sheets.v4.SheetsScopes
-import com.google.api.services.sheets.v4.model.ValueRange
-import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.*
 import android.util.Log
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,72 +39,16 @@ class SyncScheduler @Inject constructor(
 class SyncWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val repository: ExpenseRepository
+    private val syncManager: SyncManager
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        Log.d("SyncWorker", "Work started")
-        val spreadsheetId = SyncPrefs.getSpreadsheetId(applicationContext) ?: run {
-            Log.e("SyncWorker", "No spreadsheet ID found in SyncPrefs")
-            return@withContext Result.failure()
-        }
-        
-        val authManager = SheetsAuthManager(applicationContext)
-        val account = authManager.getSignedInAccount() ?: run {
-            Log.e("SyncWorker", "No Google account signed in")
-            return@withContext Result.failure()
-        }
-
-        try {
-            val unsyncedExpenses = repository.getUnsyncedExpenses()
-            Log.d("SyncWorker", "Found ${unsyncedExpenses.size} unsynced expenses")
-            if (unsyncedExpenses.isEmpty()) return@withContext Result.success()
-
-            val credential = GoogleAccountCredential.usingOAuth2(
-                applicationContext,
-                Collections.singleton(SheetsScopes.SPREADSHEETS)
-            ).setSelectedAccount(account.account)
-
-            val sheetsService = Sheets.Builder(
-                NetHttpTransport(),
-                GsonFactory.getDefaultInstance(),
-                credential
-            ).setApplicationName("Essential Expense Tracker").build()
-
-            for (expense in unsyncedExpenses) {
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                val formattedDate = dateFormat.format(Date(expense.timestamp))
-
-                val values = listOf(
-                    listOf(
-                        expense.id.toString(),            // 1. Transaction ID
-                        formattedDate,                    // 2. Date
-                        expense.type,                     // 3. Type
-                        expense.category,                 // 4. Category
-                        expense.amount.toString(),        // 5. Amount
-                        expense.paymentMethod,            // 6. Payment Method
-                        expense.friendId ?: "",           // 7. Friend Name
-                        expense.notes,                    // 8. Notes
-                        expense.timestamp.toString(),     // 9. Created At
-                        expense.timestamp.toString(),     // 10. Updated At
-                        "Synced"                          // 11. Sync Status
-                    )
-                )
-                val body = ValueRange().setValues(values)
-                
-                Log.d("SyncWorker", "Appending expense to sheet: ${expense.category}")
-                sheetsService.spreadsheets().values().append(spreadsheetId, "Transactions!A2:K", body)
-                    .setValueInputOption("USER_ENTERED")
-                    .execute()
-
-                repository.markAsSynced(expense.id)
-                Log.d("SyncWorker", "Expense marked as synced")
-            }
-
-            Log.d("SyncWorker", "Sync completed successfully")
+        Log.i("SyncWorker", "[SYNC] Background sync worker started")
+        return@withContext try {
+            syncManager.syncNow()
             Result.success()
         } catch (e: Exception) {
-            Log.e("SyncWorker", "Error during sync", e)
+            Log.e("SyncWorker", "[SYNC] Background sync failed", e)
             Result.retry()
         }
     }

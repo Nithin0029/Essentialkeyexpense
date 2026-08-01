@@ -27,4 +27,16 @@ interface BudgetDao {
     
     @Query("SELECT * FROM budgets")
     suspend fun getAllBudgets(): List<Budget>
+
+    @Query("SELECT * FROM budgets WHERE syncStatus != 'Synced'")
+    suspend fun getUnsyncedBudgets(): List<Budget>
+
+    @Query("UPDATE budgets SET syncStatus = :status, lastSyncAttempt = :attempt, syncError = :error WHERE id = :id")
+    suspend fun updateSyncStatus(id: Long, status: String, attempt: Long, error: String?)
+
+    @Query("DELETE FROM budgets WHERE syncStatus = 'Deleted'")
+    suspend fun purgeDeletedBudgets()
+
+    @Query("SELECT COUNT(*) FROM budgets WHERE syncStatus = 'Pending' OR syncStatus = 'Failed' OR syncStatus = 'Deleted'")
+    fun getUnsyncedCount(): Flow<Int>
 }
