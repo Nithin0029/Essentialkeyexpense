@@ -13,31 +13,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.nothing.expensetracker.ui.settings.BudgetViewModel
 import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
-import com.nothing.expensetracker.data.local.Expense
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
 import java.text.SimpleDateFormat
 import java.util.*
-
-// Update this constant with each release!
-const val CURRENT_VERSION_TAG = "v3.5.0"
-const val GITHUB_REPO_USER = "abhishekmannatharaj"
-const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 
 @Composable
 fun DashboardScreen(
@@ -46,10 +31,6 @@ fun DashboardScreen(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-    
-    // 🔍 Check GitHub for app updates silently on launch
-    CheckForAppUpdates(context = context)
 
     when (val state = uiState) {
         is DashboardUiState.Loading -> {
@@ -171,7 +152,7 @@ fun DashboardEmptyState(onAddClick: () -> Unit) {
             text = "Start tracking your expenses to see your dashboard data.",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.Gray,
-            textAlign = TextAlign.Center
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
@@ -302,79 +283,9 @@ fun AssetsOverviewCard(
 }
 
 @Composable
-fun CheckForAppUpdates(context: android.content.Context) {
-    var updateAvailable by remember { mutableStateOf(false) }
-    var latestTag by remember { mutableStateOf("") }
-    var releaseUrl by remember { mutableStateOf("") }
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            try {
-                val apiUrl = "https://api.github.com/repos/$GITHUB_REPO_USER/$GITHUB_REPO_NAME/releases/latest"
-                val connection = URL(apiUrl).openConnection() as HttpURLConnection
-                connection.requestMethod = "GET"
-                connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-
-                if (connection.responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().use { it.readText() }
-                    val json = JSONObject(response)
-                    val tag = json.getString("tag_name")
-                    val htmlUrl = json.getString("html_url")
-
-                    // Compare version tags
-                    if (tag != CURRENT_VERSION_TAG) {
-                        latestTag = tag
-                        releaseUrl = htmlUrl
-                        updateAvailable = true
-                    }
-                }
-            } catch (e: Exception) {
-                // Fail gracefully if offline or no updates found
-                e.printStackTrace()
-            }
-        }
-    }
-
-    // Nothing OS Style Update Popup
-    if (updateAvailable) {
-        AlertDialog(
-            onDismissRequest = { updateAvailable = false },
-            containerColor = Color(0xFF1E1E1E),
-            title = {
-                Text("Update Available! 🚀", color = Color.White, style = MaterialTheme.typography.titleLarge)
-            },
-            text = {
-                Text(
-                    "A new version ($latestTag) is available on GitHub. Update now to get the latest fixes and features!",
-                    color = Color.LightGray
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(releaseUrl))
-                        context.startActivity(intent)
-                        updateAvailable = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
-                ) {
-                    Text("Download $latestTag", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { updateAvailable = false }) {
-                    Text("Later", color = Color.Gray)
-                }
-            },
-            shape = RoundedCornerShape(20.dp)
-        )
-    }
-}
-
-@Composable
 fun BudgetSummaryCard(
     onClick: () -> Unit,
-    viewModel: BudgetViewModel = hiltViewModel()
+    viewModel: com.nothing.expensetracker.ui.settings.BudgetViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val usage = uiState.overallUsage
