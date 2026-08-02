@@ -6,7 +6,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
-    private const val BASE_URL = "https://raw.githubusercontent.com/Nithin0029/Essentialkeyexpense/"
+    private const val BASE_URL = "https://raw.githubusercontent.com/Nithin0029/Essentialkeyexpense/main/"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

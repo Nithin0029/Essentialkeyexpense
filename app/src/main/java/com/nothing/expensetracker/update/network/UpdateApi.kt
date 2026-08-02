@@ -5,6 +5,6 @@ import retrofit2.Response
 import retrofit2.http.GET
 
 interface UpdateApi {
-    @GET("main/version.json")
+    @GET("version.json")
     suspend fun getLatestVersion(): Response<VersionInfo>
 }
