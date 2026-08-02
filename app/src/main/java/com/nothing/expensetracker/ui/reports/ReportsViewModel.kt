@@ -152,7 +152,7 @@ class ReportsViewModel @Inject constructor(
                 methodMap[expense.paymentMethod] = methodMap.getOrDefault(expense.paymentMethod, 0.0) + expense.amount
             }
 
-            if (expense.category == "Friends") {
+            if (expense.category == "Friends" || expense.category == "Friend") {
                 friendTransactionCount++
                 if (expense.type == "Debit") {
                     friendsOweYou += expense.amount

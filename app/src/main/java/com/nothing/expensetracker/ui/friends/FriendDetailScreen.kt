@@ -263,7 +263,8 @@ fun SettleUpDialog(
     var selectedMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("Settlement") }
     
-    val methods = listOf("UPI", "Cash", "Bank")
+    val isCredit = currentBalance > 0
+    val methods = if (isCredit) listOf("Bank", "UPI", "Cash", "RAS") else listOf("UPI", "Cash", "Bank")
     var methodExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(

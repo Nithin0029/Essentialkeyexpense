@@ -59,7 +59,7 @@ class FriendDetailViewModel @Inject constructor(
             val expense = Expense(
                 amount = amount,
                 description = "Settlement: $friendName",
-                category = "Friends",
+                category = if (type == "Credit") "Friend" else "Friends",
                 type = type,
                 paymentMethod = paymentMethod,
                 friendId = friendName,

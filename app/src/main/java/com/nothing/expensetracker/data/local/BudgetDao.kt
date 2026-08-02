@@ -10,11 +10,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BudgetDao {
-    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS NULL LIMIT 1")
+    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS NULL AND syncStatus != 'Deleted' ORDER BY id DESC LIMIT 1")
     fun getOverallBudget(month: Int, year: Int): Flow<Budget?>
 
-    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS NOT NULL")
+    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS NOT NULL AND syncStatus != 'Deleted' GROUP BY categoryName HAVING id = MAX(id)")
     fun getCategoryBudgets(month: Int, year: Int): Flow<List<Budget>>
+
+    @Query("SELECT * FROM budgets WHERE month = :month AND year = :year AND categoryName IS :categoryName AND syncStatus != 'Deleted' LIMIT 1")
+    suspend fun findExistingBudget(categoryName: String?, month: Int, year: Int): Budget?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBudget(budget: Budget)

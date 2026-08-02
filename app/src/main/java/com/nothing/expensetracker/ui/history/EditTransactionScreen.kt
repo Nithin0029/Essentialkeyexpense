@@ -102,6 +102,7 @@ fun EditTransactionContent(
     onCancel: () -> Unit,
     onNavigateToFriends: () -> Unit
 ) {
+    val context = LocalContext.current
     var amount by remember { mutableStateOf(expense.amount.toString()) }
     var category by remember { mutableStateOf(expense.category) }
     var type by remember { mutableStateOf(expense.type) }
@@ -111,7 +112,17 @@ fun EditTransactionContent(
     var timestamp by remember { mutableLongStateOf(expense.timestamp) }
 
     val types = listOf("Debit", "Credit")
-    val methods = listOf("UPI", "Cash", "Bank")
+    val standardMethods = listOf("UPI", "Cash", "Bank")
+    val creditCategories = listOf("Salary", "Friend", "Refund", "Investment Return", "Other")
+
+    val currentCategories = if (type == "Credit") creditCategories else categories
+    val isFriendCategory = (type == "Debit" && category == "Friends") || (type == "Credit" && category == "Friend")
+    
+    val methods = if (type == "Credit" && category == "Friend") {
+        listOf("Bank", "UPI", "Cash", "RAS")
+    } else {
+        standardMethods
+    }
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
@@ -214,7 +225,14 @@ fun EditTransactionContent(
                     DropdownMenuItem(
                         text = { Text(t) },
                         onClick = {
-                            type = t
+                            if (type != t) {
+                                type = t
+                                category = if (t == "Credit") creditCategories.first() else categories.firstOrNull() ?: "Other"
+                                // Reset payment method if RAS was selected but is no longer valid
+                                if (paymentMethod == "RAS") {
+                                    paymentMethod = "UPI"
+                                }
+                            }
                             typeExpanded = false
                         }
                     )
@@ -246,12 +264,16 @@ fun EditTransactionContent(
                 expanded = categoryExpanded,
                 onDismissRequest = { categoryExpanded = false }
             ) {
-                categories.forEach { c ->
+                currentCategories.forEach { c ->
                     DropdownMenuItem(
                         text = { Text(c) },
                         onClick = {
                             category = c
                             categoryExpanded = false
+                            // Reset payment method if RAS was selected but is no longer valid for the new category
+                            if (paymentMethod == "RAS" && !(type == "Credit" && category == "Friend")) {
+                                paymentMethod = "UPI"
+                            }
                         }
                     )
                 }
@@ -295,7 +317,7 @@ fun EditTransactionContent(
         }
 
         // Friend
-        if (category == "Friends") {
+        if (isFriendCategory) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedTextField(
                     value = friendId,
@@ -382,8 +404,8 @@ fun EditTransactionContent(
                 onClick = {
                     val amountVal = amount.toDoubleOrNull() ?: 0.0
                     if (amountVal > 0 && category.isNotBlank() && type.isNotBlank() && paymentMethod.isNotBlank()) {
-                        if (category == "Friends" && friendId.isBlank()) {
-                            // Validation: Friend is mandatory for Friends category
+                        if (isFriendCategory && friendId.isBlank()) {
+                            Toast.makeText(context, "Please select a friend.", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         onSave(expense.copy(
@@ -392,7 +414,7 @@ fun EditTransactionContent(
                             type = type,
                             paymentMethod = paymentMethod,
                             notes = notes,
-                            friendId = if (category == "Friends") friendId else null,
+                            friendId = if (isFriendCategory) friendId else null,
                             timestamp = timestamp,
                             syncStatus = "Pending" // Mark for sync
                         ))

@@ -48,7 +48,7 @@ class ExpenseRepository @Inject constructor(
             expenseDao.updateSyncStatus(id, "Pending", System.currentTimeMillis(), "Initial sync failed")
         }
 
-        if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
+        if ((expense.category == "Friends" || expense.category == "Friend") && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
                 spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = id)
@@ -65,7 +65,7 @@ class ExpenseRepository @Inject constructor(
         } else {
             expenseDao.updateSyncStatus(expense.id, "Pending", System.currentTimeMillis(), "Update sync failed")
         }
-        if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
+        if ((expense.category == "Friends" || expense.category == "Friend") && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
                 spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = expense.id)
@@ -87,7 +87,7 @@ class ExpenseRepository @Inject constructor(
             android.util.Log.w("ExpenseRepository", "Transaction ${expense.id} cloud deletion failed. Queued for retry.")
         }
 
-        if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
+        if ((expense.category == "Friends" || expense.category == "Friend") && !expense.friendId.isNullOrBlank()) {
             val friend = friendDao.getFriendByName(expense.friendId)
             if (friend != null) {
                 spreadsheetManagerProvider.get().updateFriendSummaryInSheet(friend, triggeredByTransactionId = expense.id)
@@ -273,20 +273,47 @@ class ExpenseRepository @Inject constructor(
     fun getCategoryBudgets(month: Int, year: Int): Flow<List<Budget>> = budgetDao.getCategoryBudgets(month, year)
 
     suspend fun insertBudget(budget: Budget) {
-        val budgetWithPending = budget.copy(syncStatus = "Pending")
-        budgetDao.insertBudget(budgetWithPending)
+        // 1. Check for existing budget row to prevent duplicates
+        val existing = budgetDao.findExistingBudget(budget.categoryName, budget.month, budget.year)
         
-        val syncSuccess = spreadsheetManagerProvider.get().syncBudgetToSheet(budgetWithPending)
-        
-        // Query back the auto-generated ID if needed (since REPLACE strategy is used)
-        val saved = budgetDao.getAllBudgets().find { 
-            it.categoryName == budget.categoryName && it.month == budget.month && it.year == budget.year 
-        }
-
-        if (syncSuccess) {
-            saved?.let { budgetDao.updateSyncStatus(it.id, "Synced", System.currentTimeMillis(), null) }
+        // 2. Prepare new budget with correct ID if found
+        val budgetToInsert = if (existing != null) {
+            budget.copy(id = existing.id, syncStatus = "Pending")
         } else {
-            saved?.let { budgetDao.updateSyncStatus(it.id, "Pending", System.currentTimeMillis(), "Initial sync failed") }
+            budget.copy(syncStatus = "Pending")
+        }
+        
+        // 3. Insert/Update Room
+        budgetDao.insertBudget(budgetToInsert)
+        
+        // 4. Sync to Cloud
+        val syncSuccess = spreadsheetManagerProvider.get().syncBudgetToSheet(budgetToInsert)
+        
+        // 5. Update sync status
+        if (syncSuccess) {
+            val savedId = if (budgetToInsert.id == 0L) {
+                // If it was a new insert, we need the generated ID
+                budgetDao.getAllBudgets().find { 
+                    it.categoryName == budget.categoryName && it.month == budget.month && it.year == budget.year && it.syncStatus != "Deleted"
+                }?.id ?: 0L
+            } else {
+                budgetToInsert.id
+            }
+            
+            if (savedId != 0L) {
+                budgetDao.updateSyncStatus(savedId, "Synced", System.currentTimeMillis(), null)
+            }
+        } else {
+            val savedId = if (budgetToInsert.id == 0L) {
+                budgetDao.getAllBudgets().find { 
+                    it.categoryName == budget.categoryName && it.month == budget.month && it.year == budget.year && it.syncStatus != "Deleted"
+                }?.id ?: 0L
+            } else {
+                budgetToInsert.id
+            }
+            if (savedId != 0L) {
+                budgetDao.updateSyncStatus(savedId, "Pending", System.currentTimeMillis(), "Initial sync failed")
+            }
         }
     }
 

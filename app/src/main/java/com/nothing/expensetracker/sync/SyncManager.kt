@@ -137,7 +137,7 @@ class SyncManager @Inject constructor(
                         repository.updateSyncStatus(expense.id, "Synced", System.currentTimeMillis(), null)
                         
                         // Recalculate friend summary if needed
-                        if (expense.category == "Friends" && !expense.friendId.isNullOrBlank()) {
+                        if ((expense.category == "Friends" || expense.category == "Friend") && !expense.friendId.isNullOrBlank()) {
                             val friend = repository.getFriendByName(expense.friendId)
                             if (friend != null) {
                                 spreadsheetManager.updateFriendSummaryInSheet(friend, triggeredByTransactionId = expense.id)

@@ -10,10 +10,10 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FriendDao {
-    @Query("SELECT * FROM friends ORDER BY name ASC")
+    @Query("SELECT * FROM friends WHERE syncStatus != 'Deleted' ORDER BY name ASC")
     fun getAllFriends(): Flow<List<Friend>>
 
-    @Query("SELECT * FROM friends WHERE name LIKE '%' || :query || '%' ORDER BY name ASC")
+    @Query("SELECT * FROM friends WHERE name LIKE '%' || :query || '%' AND syncStatus != 'Deleted' ORDER BY name ASC")
     fun searchFriends(query: String): Flow<List<Friend>>
 
     @Query("SELECT * FROM friends WHERE name = :name LIMIT 1")
