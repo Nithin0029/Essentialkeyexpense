@@ -50,8 +50,17 @@ class QuickAddShortcutActivity : ComponentActivity() {
             var friendExpanded by remember { mutableStateOf(false) }
 
             val friends by repository.getAllFriends().collectAsState(initial = emptyList())
-            val categories = listOf("Food", "Snack", "Home", "Petrol", "Friends", "Income", "Others")
-            val paymentMethods = listOf("UPI", "Cash", "Bank")
+            val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
+            
+            val currentCategories = if (selectedType == "Credit") {
+                com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
+            } else {
+                debitCategories
+            }
+
+            val isFriendCategory = com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)
+            
+            val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(selectedType, selectedCategory)
 
             Box(
                 modifier = Modifier
@@ -86,12 +95,24 @@ class QuickAddShortcutActivity : ComponentActivity() {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             FilterChip(
                                 selected = selectedType == "Debit",
-                                onClick = { selectedType = "Debit" },
+                                onClick = { 
+                                    if (selectedType != "Debit") {
+                                        selectedType = "Debit"
+                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories)
+                                        if (selectedMethod == "RAS") selectedMethod = "UPI"
+                                    }
+                                },
                                 label = { Text("Debit (Expense)") }
                             )
                             FilterChip(
                                 selected = selectedType == "Credit",
-                                onClick = { selectedType = "Credit" },
+                                onClick = { 
+                                    if (selectedType != "Credit") {
+                                        selectedType = "Credit"
+                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories)
+                                        if (selectedMethod == "RAS") selectedMethod = "UPI"
+                                    }
+                                },
                                 label = { Text("Credit (Income)") }
                             )
                         }
@@ -105,17 +126,23 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                 Text("Category: $selectedCategory", color = Color.White)
                             }
                             DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
-                                categories.forEach { cat ->
+                                currentCategories.forEach { cat ->
                                     DropdownMenuItem(
                                         text = { Text(cat) },
-                                        onClick = { selectedCategory = cat; catExpanded = false }
+                                        onClick = { 
+                                            selectedCategory = cat
+                                            catExpanded = false
+                                            if (selectedMethod == "RAS" && !com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)) {
+                                                selectedMethod = "UPI"
+                                            }
+                                        }
                                     )
                                 }
                             }
                         }
 
                         // Friend specific fields
-                        if (selectedCategory == "Friends") {
+                        if (isFriendCategory) {
                             // Friend Selector
                             Box(modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
@@ -212,23 +239,23 @@ class QuickAddShortcutActivity : ComponentActivity() {
                             }
                             Button(
                                 onClick = {
-                                    val amount = amountText.toDoubleOrNull()
-                                    if (amount == null || amount <= 0) {
+                                    val amountVal = amountText.toDoubleOrNull() ?: 0.0
+                                    if (amountVal <= 0) {
                                         Toast.makeText(applicationContext, "Enter a valid amount", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
-                                    if (selectedCategory == "Friends" && friendId.isBlank()) {
+                                    if (isFriendCategory && friendId.isBlank()) {
                                         Toast.makeText(applicationContext, "Please select a friend", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
                                     
                                     saveTransaction(
-                                        amount = amount,
+                                        amount = amountVal,
                                         category = selectedCategory,
                                         type = selectedType,
                                         method = selectedMethod,
                                         notes = notesText,
-                                        fId = if (selectedCategory == "Friends") friendId else null
+                                        fId = if (isFriendCategory) friendId else null
                                     )
                                     finish()
                                 },

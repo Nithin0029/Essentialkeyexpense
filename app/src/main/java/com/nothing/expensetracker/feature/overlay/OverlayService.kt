@@ -11,6 +11,8 @@ import android.os.IBinder
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
 import androidx.lifecycle.Lifecycle
@@ -136,8 +138,13 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
                 setViewTreeSavedStateRegistryOwner(this@OverlayService)
 
                 setContent {
+                    val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
+                    val friends by repository.getAllFriends().collectAsState(initial = emptyList())
+                    
                     QuickAddOverlayContent(
                         initialColor = color,
+                        debitCategories = debitCategories,
+                        friends = friends,
                         onSaveExpense = { amount, description, category, type, paymentMethod, friendId, notes ->
                             saveExpenseAndSync(amount, description, category, type, paymentMethod, friendId, notes, color)
                             stopOverlay()
@@ -170,7 +177,7 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
         CoroutineScope(Dispatchers.IO).launch {
             val expense = Expense(
                 amount = amount,
-                description = description,
+                description = if (notes.isBlank()) category else notes,
                 category = category,
                 type = type,
                 paymentMethod = paymentMethod,

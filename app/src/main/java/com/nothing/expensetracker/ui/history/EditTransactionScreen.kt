@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.ui.history.TransactionConstants
 import android.widget.Toast
 import java.text.SimpleDateFormat
 import java.util.*
@@ -111,18 +112,13 @@ fun EditTransactionContent(
     var friendId by remember { mutableStateOf(expense.friendId ?: "") }
     var timestamp by remember { mutableLongStateOf(expense.timestamp) }
 
-    val types = listOf("Debit", "Credit")
-    val standardMethods = listOf("UPI", "Cash", "Bank")
-    val creditCategories = listOf("Salary", "Friend", "Refund", "Investment Return", "Other")
+    val types = TransactionConstants.TRANSACTION_TYPES
+    val creditCategories = TransactionConstants.CREDIT_CATEGORIES
 
     val currentCategories = if (type == "Credit") creditCategories else categories
-    val isFriendCategory = (type == "Debit" && category == "Friends") || (type == "Credit" && category == "Friend")
+    val isFriendCategory = TransactionConstants.isFriendCategory(type, category)
     
-    val methods = if (type == "Credit" && category == "Friend") {
-        listOf("Bank", "UPI", "Cash", "RAS")
-    } else {
-        standardMethods
-    }
+    val methods = TransactionConstants.getAvailableMethods(type, category)
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
@@ -227,7 +223,7 @@ fun EditTransactionContent(
                         onClick = {
                             if (type != t) {
                                 type = t
-                                category = if (t == "Credit") creditCategories.first() else categories.firstOrNull() ?: "Other"
+                                category = TransactionConstants.getInitialCategory(t, categories)
                                 // Reset payment method if RAS was selected but is no longer valid
                                 if (paymentMethod == "RAS") {
                                     paymentMethod = "UPI"
