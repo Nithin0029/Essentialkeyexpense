@@ -1,5 +1,8 @@
 package com.nothing.expensetracker.ui.settings
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -11,12 +14,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -59,6 +65,7 @@ fun SettingsScreen(
     var mpinVerifyReason by remember { mutableStateOf<MpinVerifyReason?>(null) }
     
     val mpinEnabled = mpinViewModel.isMpinSet()
+    val context = LocalContext.current
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -135,6 +142,19 @@ fun SettingsScreen(
                 },
                 onSyncNow = {
                     viewModel.syncNow()
+                },
+                onOpenSpreadsheet = { id ->
+                    if (id.isBlank()) {
+                        Toast.makeText(context, "No spreadsheet connected.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val url = "https://docs.google.com/spreadsheets/d/$id"
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Unable to open spreadsheet.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
             )
 
@@ -343,7 +363,8 @@ fun GoogleSyncSettingsCard(
     lastSyncTime: Long?,
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
-    onSyncNow: () -> Unit
+    onSyncNow: () -> Unit,
+    onOpenSpreadsheet: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -462,6 +483,38 @@ fun GoogleSyncSettingsCard(
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                             SettingRow(label = "Cloud Database", value = "Connected")
                             SettingRow(label = "Database Name", value = spreadsheetState.name)
+
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
+                            // Open Spreadsheet Item
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenSpreadsheet(spreadsheetState.id) }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.TableChart,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(text = "Open Spreadsheet", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                        Text(text = "Open your synced Google Sheets spreadsheet", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = null,
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
                             
