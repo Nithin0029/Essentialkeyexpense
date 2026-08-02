@@ -35,7 +35,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 // Update this constant with each release!
-const val CURRENT_VERSION_TAG = "v2.0.0"
+const val CURRENT_VERSION_TAG = "v3.5.0"
 const val GITHUB_REPO_USER = "abhishekmannatharaj"
 const val GITHUB_REPO_NAME = "Essentialkeyexpense"
 

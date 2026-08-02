@@ -768,7 +768,7 @@ fun AboutCard() {
                 color = Color.White
             )
             Text(
-                text = "Version 2.0.0",
+                text = "Version 3.5.0",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
