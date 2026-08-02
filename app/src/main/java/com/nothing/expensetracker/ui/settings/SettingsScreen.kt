@@ -130,6 +130,7 @@ fun SettingsScreen(
             GoogleSyncSettingsCard(
                 authState = authState,
                 spreadsheetState = spreadsheetState,
+                isSyncing = viewModel.isSyncing.collectAsState().value,
                 unsyncedCount = viewModel.unsyncedCount.collectAsState().value,
                 syncedCount = viewModel.syncedCount.collectAsState().value,
                 failedCount = viewModel.failedCount.collectAsState().value,
@@ -357,6 +358,7 @@ fun MpinVerifyDialog(
 fun GoogleSyncSettingsCard(
     authState: AuthState,
     spreadsheetState: SpreadsheetState,
+    isSyncing: Boolean,
     unsyncedCount: Int,
     syncedCount: Int,
     failedCount: Int,
@@ -522,8 +524,18 @@ fun GoogleSyncSettingsCard(
                             SyncStatRow(label = "Pending", value = unsyncedCount.toString(), color = Color(0xFFFFC107))
                             SyncStatRow(label = "Failed", value = failedCount.toString(), color = Color(0xFFF44336))
                             
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
+                            val syncStatus = when {
+                                isSyncing -> "Syncing"
+                                failedCount > 0 -> "Failed"
+                                unsyncedCount > 0 -> "Pending"
+                                else -> "Synced"
+                            }
+                            SettingRow(label = "Sync Status", value = syncStatus)
+
                             val syncTimeStr = lastSyncTime?.let {
-                                java.text.SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(it))
+                                java.text.SimpleDateFormat("dd MMM yyyy • hh:mm a", Locale.getDefault()).format(Date(it))
                             } ?: "Never"
                             SettingRow(label = "Last Sync", value = syncTimeStr)
 
@@ -532,9 +544,15 @@ fun GoogleSyncSettingsCard(
                                 onClick = onSyncNow,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                enabled = unsyncedCount > 0 || failedCount > 0
+                                enabled = (unsyncedCount > 0 || failedCount > 0) && !isSyncing
                             ) {
-                                Text("Sync Now")
+                                if (isSyncing) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Syncing...")
+                                } else {
+                                    Text("Sync Now")
+                                }
                             }
                         }
                         is SpreadsheetState.Error -> {

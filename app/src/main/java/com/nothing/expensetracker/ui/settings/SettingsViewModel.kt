@@ -36,6 +36,9 @@ class SettingsViewModel @Inject constructor(
     private val _spreadsheetState = MutableStateFlow<SpreadsheetState>(SpreadsheetState.Idle)
     val spreadsheetState: StateFlow<SpreadsheetState> = _spreadsheetState.asStateFlow()
 
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
     // Sync Stats
     val unsyncedCount: StateFlow<Int> = syncManager.getUnsyncedCount()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
@@ -100,7 +103,12 @@ class SettingsViewModel @Inject constructor(
 
     fun syncNow() {
         viewModelScope.launch {
-            syncManager.syncNow()
+            _isSyncing.value = true
+            try {
+                syncManager.syncNow()
+            } finally {
+                _isSyncing.value = false
+            }
         }
     }
 }
