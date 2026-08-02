@@ -1,7 +1,8 @@
 # Build outputs
-/build/
+build/
 **/build/
 /out/
+app/release/
 
 # Gradle
 .gradle/
@@ -59,13 +60,14 @@ Thumbs.db
 .cxx/
 
 # Firebase / Google Services
-# Note: Keep google-services.json if you want it tracked, but it's often ignored for security.
 app/google-services.json
 
 # Service Accounts / Keys
+# Ignore all JSON files by default for safety (service accounts, etc.)
+# but un-ignore critical application config files.
 *.json
-!google-services.template.json
 !version.json
+!google-services.template.json
 
 # AI Assistant Artifacts
 .artifacts/
