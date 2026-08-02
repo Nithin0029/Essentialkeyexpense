@@ -26,6 +26,8 @@ class FriendRepository @Inject constructor(
 
     suspend fun getFriendByName(name: String) = friendDao.getFriendByName(name)
 
+    suspend fun getFriendByNameCaseInsensitive(name: String) = friendDao.getFriendByNameCaseInsensitive(name.trim())
+
     suspend fun hasTransactions(friendName: String): Boolean {
         return expenseDao.getTransactionsByFriend(friendName).first().isNotEmpty()
     }
@@ -46,12 +48,29 @@ class FriendRepository @Inject constructor(
 
     suspend fun updateFriend(oldName: String, friend: Friend) {
         val updatedFriend = friend.copy(syncStatus = "Pending")
-        if (oldName != updatedFriend.name) {
+        val nameChanged = oldName != updatedFriend.name
+        
+        if (nameChanged) {
+            // 1. Fetch historical transactions
+            val transactions = expenseDao.getTransactionsByFriend(oldName).first()
+            
+            // 2. Update local transactions
             expenseDao.updateFriendNameInTransactions(oldName, updatedFriend.name)
+            
+            // 3. Update transactions in Google Sheets
+            transactions.forEach { expense ->
+                val updatedExpense = expense.copy(friendId = updatedFriend.name)
+                // We attempt to update the sheet. If it fails (offline), the local DB is already updated 
+                // and the transaction remains in its current sync state. 
+                // Future syncs will use the new name because the local entity is updated.
+                spreadsheetManagerProvider.get().updateTransactionInSheet(updatedExpense)
+            }
         }
+
+        // 4. Update the friend profile locally
         friendDao.updateFriend(updatedFriend)
         
-        // Attempt immediate sync
+        // 5. Update the Friend summary in Google Sheets
         val syncSuccess = spreadsheetManagerProvider.get().updateFriendSummaryInSheet(updatedFriend)
         if (syncSuccess) {
             friendDao.updateSyncStatus(updatedFriend.id, "Synced", System.currentTimeMillis(), null)
@@ -60,16 +79,44 @@ class FriendRepository @Inject constructor(
         }
     }
 
-    suspend fun deleteFriend(friend: Friend) {
+    suspend fun deleteFriendOnly(friend: Friend) {
         // Soft delete locally first
         val deletedFriend = friend.copy(syncStatus = "Deleted")
+        
+        // 1. Remove friend link from all transactions (Keep the records)
         expenseDao.nullifyFriendId(deletedFriend.name)
+        
+        // 2. Mark friend for deletion to trigger sync
         friendDao.updateFriend(deletedFriend) 
         
-        // Attempt immediate sync
+        // 3. Attempt immediate sync
         val syncSuccess = spreadsheetManagerProvider.get().deleteFriendFromSheet(deletedFriend.id.toString(), deletedFriend.name)
         if (syncSuccess) {
-            deleteFriendPermanently(deletedFriend) // Final purge
+            deleteFriendPermanently(deletedFriend)
+        } else {
+            friendDao.updateSyncStatus(deletedFriend.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
+        }
+    }
+
+    suspend fun deleteFriendAndTransactions(friend: Friend) {
+        val deletedFriend = friend.copy(syncStatus = "Deleted")
+        
+        // 1. Fetch and mark all associated transactions for deletion
+        val transactions = expenseDao.getTransactionsByFriend(friend.name).first()
+        transactions.forEach { expense ->
+            val deletedExpense = expense.copy(syncStatus = "Deleted")
+            expenseDao.updateExpense(deletedExpense)
+            // Attempt immediate cloud deletion for each row
+            spreadsheetManagerProvider.get().deleteTransactionFromSheet(expense.id.toString())
+        }
+        
+        // 2. Mark friend for deletion
+        friendDao.updateFriend(deletedFriend)
+        
+        // 3. Attempt cloud deletion for friend summary
+        val syncSuccess = spreadsheetManagerProvider.get().deleteFriendFromSheet(deletedFriend.id.toString(), deletedFriend.name)
+        if (syncSuccess) {
+            deleteFriendPermanently(deletedFriend)
         } else {
             friendDao.updateSyncStatus(deletedFriend.id, "Deleted", System.currentTimeMillis(), "Delete sync failed")
         }

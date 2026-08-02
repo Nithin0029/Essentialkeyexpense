@@ -16,6 +16,9 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE name = :name LIMIT 1")
     suspend fun getCategoryByName(name: String): Category?
 
+    @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) AND syncStatus != 'Deleted' LIMIT 1")
+    suspend fun getCategoryByNameCaseInsensitive(name: String): Category?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCategory(category: Category): Long
 

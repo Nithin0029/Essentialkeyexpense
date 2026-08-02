@@ -107,7 +107,7 @@ fun FriendsScreen(
                         FriendItem(
                             item = item,
                             onClick = { onNavigateToLedger(item.friend.name) },
-                            onLongClick = { friendToEdit = item.friend },
+                            onEditClick = { friendToEdit = item.friend },
                             onDeleteClick = { friendToDelete = item.friend }
                         )
                     }
@@ -150,46 +150,81 @@ fun FriendsScreen(
             hasHistory = viewModel.hasTransactions(friendName)
         }
 
-        AlertDialog(
-            onDismissRequest = { friendToDelete = null },
-            title = { Text("Delete Friend", color = Color.White) },
-            text = {
-                Column {
-                    Text(
-                        text = "Are you sure you want to delete \"$friendName\"?",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    if (hasHistory) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Deleting this friend will not delete transaction history.\n\nExisting transactions will remain and will display \"Deleted Friend\".",
-                            color = Color.Gray,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+        if (!hasHistory) {
+            // Simple confirmation for friends with NO history
+            AlertDialog(
+                onDismissRequest = { friendToDelete = null },
+                title = { Text("Delete Friend", color = Color.White) },
+                text = { Text("Are you sure you want to delete \"$friendName\"?", color = Color.Gray) },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.deleteFriendOnly(friendToDelete!!)
+                            friendToDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                    ) {
+                        Text("Delete", color = Color.White)
                     }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val toDelete = friendToDelete!!
-                        friendToDelete = null
-                        viewModel.deleteFriend(toDelete) { _, _ -> }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
-                ) {
-                    Text("Delete", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { friendToDelete = null }) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            },
-            containerColor = Color(0xFF1E1E1E),
-            shape = RoundedCornerShape(20.dp)
-        )
+                },
+                dismissButton = {
+                    TextButton(onClick = { friendToDelete = null }) {
+                        Text("Cancel", color = Color.Gray)
+                    }
+                },
+                containerColor = Color(0xFF1E1E1E),
+                shape = RoundedCornerShape(20.dp)
+            )
+        } else {
+            // Complex Choice Dialog for friends WITH history
+            AlertDialog(
+                onDismissRequest = { friendToDelete = null },
+                title = { Text("Friend is used in transactions", color = Color.White) },
+                text = {
+                    Text(
+                        text = "This friend is linked to existing transactions. Choose what you want to do.",
+                        color = Color.LightGray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                confirmButton = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.deleteFriendOnly(friendToDelete!!)
+                                friendToDelete = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Delete Friend Only")
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.deleteFriendAndTransactions(friendToDelete!!)
+                                friendToDelete = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Delete Friend + All Transactions")
+                        }
+                        TextButton(
+                            onClick = { friendToDelete = null },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel", color = Color.Gray)
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1E1E1E),
+                shape = RoundedCornerShape(20.dp)
+            )
+        }
     }
 }
 
@@ -198,7 +233,7 @@ fun FriendsScreen(
 fun FriendItem(
     item: FriendWithBalance,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     val friend = item.friend
@@ -206,10 +241,7 @@ fun FriendItem(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
     ) {
@@ -273,13 +305,24 @@ fun FriendItem(
                     }
                 }
             }
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = Color.Gray.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
-                )
+            
+            Row {
+                IconButton(onClick = onEditClick) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(onClick = onDeleteClick) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = Color.Gray.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }
@@ -322,88 +365,3 @@ fun EmptyFriendsState(onAddClick: () -> Unit) {
     }
 }
 
-@Composable
-fun FriendDialog(
-    title: String,
-    initialName: String = "",
-    showDelete: Boolean = false,
-    onDismiss: () -> Unit,
-    onConfirm: (String, (Boolean, String?) -> Unit) -> Unit,
-    onDelete: (() -> Unit)? = null
-) {
-    var name by remember { mutableStateOf(initialName) }
-    var error by remember { mutableStateOf<String?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { 
-                        name = it
-                        error = null
-                    },
-                    label = { Text("Friend Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = error != null,
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    )
-                )
-                if (error != null) {
-                    Text(
-                        text = error!!,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (showDelete) {
-                    Button(
-                        onClick = { onDelete?.invoke() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921)),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Delete")
-                    }
-                }
-                
-                OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Cancel", color = Color.White)
-                }
-                
-                Button(
-                    onClick = {
-                        onConfirm(name) { success, message ->
-                            if (success) {
-                                onDismiss()
-                            } else {
-                                error = message
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Save")
-                }
-            }
-        },
-        dismissButton = null,
-        containerColor = Color(0xFF1E1E1E),
-        shape = RoundedCornerShape(20.dp)
-    )
-}

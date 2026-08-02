@@ -19,6 +19,9 @@ interface FriendDao {
     @Query("SELECT * FROM friends WHERE name = :name LIMIT 1")
     suspend fun getFriendByName(name: String): Friend?
 
+    @Query("SELECT * FROM friends WHERE LOWER(name) = LOWER(:name) AND syncStatus != 'Deleted' LIMIT 1")
+    suspend fun getFriendByNameCaseInsensitive(name: String): Friend?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFriend(friend: Friend): Long
 

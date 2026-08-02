@@ -73,9 +73,9 @@ class FriendsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val existing = repository.getFriendByName(trimmedName)
+            val existing = repository.getFriendByNameCaseInsensitive(trimmedName)
             if (existing != null) {
-                onResult(false, "Friend already exists")
+                onResult(false, "Friend already exists.")
             } else {
                 repository.insertFriend(Friend(name = trimmedName))
                 onResult(true, null)
@@ -91,9 +91,9 @@ class FriendsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val existing = repository.getFriendByName(trimmedName)
+            val existing = repository.getFriendByNameCaseInsensitive(trimmedName)
             if (existing != null && existing.id != friend.id) {
-                onResult(false, "Another friend with this name already exists")
+                onResult(false, "Friend already exists.")
             } else {
                 repository.updateFriend(friend.name, friend.copy(name = trimmedName, updatedAt = System.currentTimeMillis()))
                 onResult(true, null)
@@ -101,10 +101,15 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    fun deleteFriend(friend: Friend, onResult: (Boolean, String?) -> Unit) {
+    fun deleteFriendOnly(friend: Friend) {
         viewModelScope.launch {
-            repository.deleteFriend(friend)
-            onResult(true, null)
+            repository.deleteFriendOnly(friend)
+        }
+    }
+
+    fun deleteFriendAndTransactions(friend: Friend) {
+        viewModelScope.launch {
+            repository.deleteFriendAndTransactions(friend)
         }
     }
 }

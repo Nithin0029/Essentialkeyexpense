@@ -180,6 +180,10 @@ class ExpenseRepository @Inject constructor(
         return categoryDao.countCategories()
     }
 
+    suspend fun getCategoryByNameCaseInsensitive(name: String): Category? {
+        return categoryDao.getCategoryByNameCaseInsensitive(name.trim())
+    }
+
     suspend fun deleteCategoryAndMoveTransactions(category: Category, replacementCategoryName: String) {
         val affectedExpenses = expenseDao.getExpensesByCategoryName(category.name)
         expenseDao.updateCategoryNameInTransactions(category.name, replacementCategoryName)
