@@ -11,5 +11,8 @@ data class Budget(
     val categoryName: String? = null, // null for overall budget
     val amount: Double,
     val month: Int, // 1-12
-    val year: Int
+    val year: Int,
+    val syncStatus: String = "Synced", // "Pending", "Syncing", "Synced", "Failed", "Deleted"
+    val lastSyncAttempt: Long = 0,
+    val syncError: String? = null
 )

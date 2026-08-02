@@ -2,10 +2,12 @@ package com.nothing.expensetracker.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.nothing.expensetracker.data.local.AppPrefs
 import com.nothing.expensetracker.data.local.CategoryExpense
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
+import com.nothing.expensetracker.data.repository.FriendRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -43,6 +45,7 @@ sealed class DashboardUiState {
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val repository: ExpenseRepository,
+    private val friendRepository: FriendRepository,
     private val appPrefs: AppPrefs,
     private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler
 ) : ViewModel() {
@@ -55,8 +58,27 @@ class MainViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.seedDefaultCategories()
-            syncScheduler.scheduleSync() // Trigger sync for any pending offline transactions
+            try {
+                Log.d("MainViewModel", "Startup: Seeding default categories...")
+                repository.seedDefaultCategories()
+                
+                Log.d("MainViewModel", "Startup: Scheduling background sync...")
+                syncScheduler.scheduleSync()
+                
+                // Diagnostic log for friends (wrapped in secondary try-catch)
+                launch {
+                    try {
+                        val friends = friendRepository.getAllFriends().first()
+                        friends.forEach { friend ->
+                            Log.d("ROOM_FRIEND_DEBUG", "ID: ${friend.id} | Name: ${friend.name} | Status: ${friend.syncStatus}")
+                        }
+                    } catch (e: Exception) {
+                        Log.w("ROOM_FRIEND_DEBUG", "Diagnostic log failed", e)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Critical startup error", e)
+            }
         }
     }
 
@@ -76,87 +98,92 @@ class MainViewModel @Inject constructor(
         appPrefs.openingBankBalance,
         appPrefs.openingCashBalance
     ) { flows ->
-        val allExpenses = (flows[0] as? List<*>)?.filterIsInstance<Expense>() ?: emptyList()
-        val bankCredits = flows[1] as? Double ?: 0.0
-        val bankDebits = flows[2] as? Double ?: 0.0
-        val cashCredits = flows[3] as? Double ?: 0.0
-        val cashDebits = flows[4] as? Double ?: 0.0
-        val opBank = flows[5] as? Double ?: 0.0
-        val opCash = flows[6] as? Double ?: 0.0
+        try {
+            val allExpenses = (flows[0] as? List<*>)?.filterIsInstance<Expense>() ?: emptyList()
+            val bankCredits = flows[1] as? Double ?: 0.0
+            val bankDebits = flows[2] as? Double ?: 0.0
+            val cashCredits = flows[3] as? Double ?: 0.0
+            val cashDebits = flows[4] as? Double ?: 0.0
+            val opBank = flows[5] as? Double ?: 0.0
+            val opCash = flows[6] as? Double ?: 0.0
 
-        if (allExpenses.isEmpty()) {
-            return@combine DashboardUiState.Empty
-        }
-
-        val now = LocalDate.now()
-        val zoneId = ZoneId.systemDefault()
-        val startOfWeek = now.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
-        val startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
-
-        var income = 0.0
-        var expenseTotal = 0.0
-        var todaySpending = 0.0
-        var weekSpending = 0.0
-        var monthSpending = 0.0
-        val categoryMap = mutableMapOf<String, Double>()
-
-        allExpenses.forEach { expense ->
-            val amount = expense.amount
-            val isDebit = expense.type == "Debit"
-            
-            if (isDebit) {
-                expenseTotal += amount
-                categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
-                
-                val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
-                if (date.isEqual(now)) {
-                    todaySpending += amount
-                }
-                if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
-                    weekSpending += amount
-                }
-                if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
-                    monthSpending += amount
-                }
-            } else {
-                income += amount
+            if (allExpenses.isEmpty()) {
+                return@combine DashboardUiState.Empty
             }
-        }
 
-        // 1. Balances
-        val bankBalance = opBank + bankCredits - bankDebits
-        val cashBalance = opCash + cashCredits - cashDebits
-        val totalAssets = bankBalance + cashBalance
+            val now = LocalDate.now()
+            val zoneId = ZoneId.systemDefault()
+            val startOfWeek = now.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            val startOfMonth = now.with(TemporalAdjusters.firstDayOfMonth())
 
-        // 7. Category Breakdown
-        val topCategories = categoryMap.map { (cat, total) -> CategoryExpense(cat, total) }
-            .sortedByDescending { it.totalAmount }
-            .take(5)
+            var income = 0.0
+            var expenseTotal = 0.0
+            var todaySpending = 0.0
+            var weekSpending = 0.0
+            var monthSpending = 0.0
+            val categoryMap = mutableMapOf<String, Double>()
 
-        // 8. Recent Transactions
-        val recentTransactions = allExpenses.take(5)
+            allExpenses.forEach { expense ->
+                val amount = expense.amount
+                val isDebit = expense.type == "Debit"
+                
+                if (isDebit) {
+                    expenseTotal += amount
+                    categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
+                    
+                    val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
+                    if (date.isEqual(now)) {
+                        todaySpending += amount
+                    }
+                    if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
+                        weekSpending += amount
+                    }
+                    if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
+                        monthSpending += amount
+                    }
+                } else {
+                    income += amount
+                }
+            }
 
-        // 9. Global Sync Status
-        val isAllSynced = allExpenses.all { it.isSynced }
+            // 1. Balances
+            val bankBalance = opBank + bankCredits - bankDebits
+            val cashBalance = opCash + cashCredits - cashDebits
+            val totalAssets = bankBalance + cashBalance
 
-        DashboardUiState.Success(
-            DashboardData(
-                bankBalance = bankBalance,
-                cashBalance = cashBalance,
-                totalAssets = totalAssets,
-                openingBankBalance = opBank,
-                openingCashBalance = opCash,
-                income = income,
-                expense = expenseTotal,
-                todaySpending = todaySpending,
-                weekSpending = weekSpending,
-                monthSpending = monthSpending,
-                topCategories = topCategories,
-                recentTransactions = recentTransactions,
-                hasTransactions = true,
-                isAllSynced = isAllSynced
+            // 7. Category Breakdown
+            val topCategories = categoryMap.map { (cat, total) -> CategoryExpense(cat, total) }
+                .sortedByDescending { it.totalAmount }
+                .take(5)
+
+            // 8. Recent Transactions
+            val recentTransactions = allExpenses.take(5)
+
+            // 9. Global Sync Status
+            val isAllSynced = allExpenses.all { it.syncStatus == "Synced" }
+
+            DashboardUiState.Success(
+                DashboardData(
+                    bankBalance = bankBalance,
+                    cashBalance = cashBalance,
+                    totalAssets = totalAssets,
+                    openingBankBalance = opBank,
+                    openingCashBalance = opCash,
+                    income = income,
+                    expense = expenseTotal,
+                    todaySpending = todaySpending,
+                    weekSpending = weekSpending,
+                    monthSpending = monthSpending,
+                    topCategories = topCategories,
+                    recentTransactions = recentTransactions,
+                    hasTransactions = true,
+                    isAllSynced = isAllSynced
+                )
             )
-        )
+        } catch (e: Exception) {
+            Log.e("MainViewModel", "UI State combination error", e)
+            DashboardUiState.Empty
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

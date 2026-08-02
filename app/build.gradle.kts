@@ -14,8 +14,8 @@ android {
         applicationId = "com.nothing.expensetracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 330
-        versionName = "3.3.0"
+        versionCode = 340
+        versionName = "3.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -79,6 +79,7 @@ dependencies {
     implementation(libs.play.services.auth)
     implementation(libs.google.api.client.android)
     implementation(libs.google.api.services.sheets)
+    implementation(libs.google.api.services.drive)
     implementation(libs.androidx.security.crypto)
     implementation(libs.hilt.navigation.compose)
 

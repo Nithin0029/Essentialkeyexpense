@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ fun FriendDetailScreen(
     viewModel: FriendDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var showEditDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -36,6 +38,11 @@ fun FriendDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showEditDialog = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Friend", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -52,6 +59,17 @@ fun FriendDetailScreen(
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         } else {
+            if (showEditDialog) {
+                FriendDialog(
+                    title = "Edit Friend",
+                    initialName = uiState.friendName,
+                    onDismiss = { showEditDialog = false },
+                    onConfirm = { newName, onResult ->
+                        viewModel.updateFriend(newName, onResult)
+                    }
+                )
+            }
+            
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -263,7 +281,8 @@ fun SettleUpDialog(
     var selectedMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("Settlement") }
     
-    val methods = listOf("UPI", "Cash", "Bank")
+    val isCredit = currentBalance > 0
+    val methods = if (isCredit) listOf("Bank", "UPI", "Cash", "RAS") else listOf("UPI", "Cash", "Bank")
     var methodExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(

@@ -27,24 +27,36 @@ class CategoryViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CategoryUiState())
 
     fun addCategory(name: String, onResult: (Boolean, String?) -> Unit) {
-        if (name.isBlank()) {
+        val trimmedName = name.trim()
+        if (trimmedName.isBlank()) {
             onResult(false, "Name cannot be empty")
             return
         }
         viewModelScope.launch {
-            repository.insertCategory(Category(name = name))
-            onResult(true, null)
+            val existing = repository.getCategoryByNameCaseInsensitive(trimmedName)
+            if (existing != null) {
+                onResult(false, "Category already exists.")
+            } else {
+                repository.insertCategory(Category(name = trimmedName))
+                onResult(true, null)
+            }
         }
     }
 
     fun updateCategory(category: Category, newName: String, onResult: (Boolean, String?) -> Unit) {
-        if (newName.isBlank()) {
+        val trimmedName = newName.trim()
+        if (trimmedName.isBlank()) {
             onResult(false, "Name cannot be empty")
             return
         }
         viewModelScope.launch {
-            repository.updateCategory(category.name, category.copy(name = newName))
-            onResult(true, null)
+            val existing = repository.getCategoryByNameCaseInsensitive(trimmedName)
+            if (existing != null && existing.id != category.id) {
+                onResult(false, "Category already exists.")
+            } else {
+                repository.updateCategory(category.name, category.copy(name = trimmedName))
+                onResult(true, null)
+            }
         }
     }
 

@@ -15,6 +15,7 @@ work = "2.11.2"
 googleAuth = "21.3.0"
 googleApiClient = "2.7.0"
 googleSheets = "v4-rev20260610-2.0.0"
+googleDrive = "v3-rev20260720-2.0.0"
 hiltNavigationCompose = "1.4.0"
 hiltWork = "1.2.0"
 androidxHiltCompiler = "1.2.0"
@@ -54,6 +55,7 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "googleAuth" }
 google-api-client-android = { group = "com.google.api-client", name = "google-api-client-android", version.ref = "googleApiClient" }
 google-api-services-sheets = { group = "com.google.apis", name = "google-api-services-sheets", version.ref = "googleSheets" }
+google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleDrive" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }

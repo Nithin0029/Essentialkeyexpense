@@ -59,16 +59,39 @@ class FriendDetailViewModel @Inject constructor(
             val expense = Expense(
                 amount = amount,
                 description = "Settlement: $friendName",
-                category = "Friends",
+                category = if (type == "Credit") "Friend" else "Friends",
                 type = type,
                 paymentMethod = paymentMethod,
                 friendId = friendName,
                 notes = notes,
                 timestamp = System.currentTimeMillis(),
-                isSynced = false
+                syncStatus = "Pending"
             )
             expenseRepository.insertExpense(expense)
             syncScheduler.scheduleSync()
+        }
+    }
+
+    fun updateFriend(newName: String, onResult: (Boolean, String?) -> Unit) {
+        val trimmedName = newName.trim()
+        if (trimmedName.isEmpty()) {
+            onResult(false, "Name is required")
+            return
+        }
+
+        viewModelScope.launch {
+            val existing = repository.getFriendByNameCaseInsensitive(trimmedName)
+            if (existing != null && existing.name != friendName) {
+                onResult(false, "Friend already exists.")
+            } else {
+                val friend = repository.getFriendByName(friendName)
+                if (friend != null) {
+                    repository.updateFriend(friendName, friend.copy(name = trimmedName, updatedAt = System.currentTimeMillis()))
+                    onResult(true, null)
+                } else {
+                    onResult(false, "Friend not found")
+                }
+            }
         }
     }
 }

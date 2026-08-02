@@ -11,5 +11,8 @@ data class Category(
     val name: String,
     val iconName: String? = null,
     val colorHex: String? = null,
-    val isSystem: Boolean = false
+    val isSystem: Boolean = false,
+    val syncStatus: String = "Synced", // "Pending", "Syncing", "Synced", "Failed", "Deleted"
+    val lastSyncAttempt: Long = 0,
+    val syncError: String? = null
 )

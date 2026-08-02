@@ -219,10 +219,10 @@ fun DashboardHeader(isSynced: Boolean) {
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(if (isSynced) Color.Green else Color.Yellow, CircleShape)
+                        .background(if (isSynced) Color.Green else Color(0xFFFFC107), CircleShape)
                 )
                 Text(
-                    text = if (isSynced) "Synced" else "Syncing",
+                    text = if (isSynced) "Synced" else "Pending",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Medium

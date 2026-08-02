@@ -21,12 +21,13 @@ data class FriendBalance(
 
 @Dao
 interface ExpenseDao {
-    @Query("SELECT * FROM expenses ORDER BY timestamp DESC")
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' ORDER BY timestamp DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
     @Query("""
         SELECT * FROM expenses 
-        WHERE (:query = '' OR category LIKE '%' || :query || '%' OR notes LIKE '%' || :query || '%' OR friendId LIKE '%' || :query || '%' OR paymentMethod LIKE '%' || :query || '%')
+        WHERE syncStatus != 'Deleted'
+        AND (:query = '' OR category LIKE '%' || :query || '%' OR notes LIKE '%' || :query || '%' OR friendId LIKE '%' || :query || '%' OR paymentMethod LIKE '%' || :query || '%')
         AND (:type = 'All' OR type = :type)
         AND (:method = 'All' OR paymentMethod = :method)
         AND (:category = 'All' OR category = :category)
@@ -49,7 +50,7 @@ interface ExpenseDao {
         endTime: Long = Long.MAX_VALUE
     ): Flow<List<Expense>>
 
-    @Query("SELECT * FROM expenses WHERE id = :id")
+    @Query("SELECT * FROM expenses WHERE id = :id AND syncStatus != 'Deleted'")
     fun getExpenseById(id: Long): Flow<Expense?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -64,16 +65,28 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE id = :expenseId")
     suspend fun deleteExpenseById(expenseId: Long)
 
-    @Query("SELECT * FROM expenses WHERE isSynced = 0")
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Synced'")
     suspend fun getUnsyncedExpenses(): List<Expense>
 
-    @Query("UPDATE expenses SET isSynced = 1 WHERE id = :id")
-    suspend fun markAsSynced(id: Long)
+    @Query("UPDATE expenses SET syncStatus = :status, lastSyncAttempt = :attempt, syncError = :error WHERE id = :id")
+    suspend fun updateSyncStatus(id: Long, status: String, attempt: Long, error: String?)
 
-    @Query("SELECT DISTINCT category FROM expenses ORDER BY category ASC")
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Pending' OR syncStatus = 'Failed' OR syncStatus = 'Deleted'")
+    fun getUnsyncedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Synced'")
+    fun getSyncedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM expenses WHERE syncStatus = 'Failed'")
+    fun getFailedCount(): Flow<Int>
+
+    @Query("SELECT MAX(lastSyncAttempt) FROM expenses WHERE syncStatus = 'Synced'")
+    fun getLastSyncTime(): Flow<Long?>
+
+    @Query("SELECT DISTINCT category FROM expenses WHERE syncStatus != 'Deleted' ORDER BY category ASC")
     fun getAllCategories(): Flow<List<String>>
 
-    @Query("SELECT DISTINCT friendId FROM expenses WHERE friendId IS NOT NULL AND friendId != '' ORDER BY friendId ASC")
+    @Query("SELECT DISTINCT friendId FROM expenses WHERE syncStatus != 'Deleted' AND friendId IS NOT NULL AND friendId != '' ORDER BY friendId ASC")
     fun getAllFriends(): Flow<List<String>>
 
     @Query("""
@@ -83,12 +96,12 @@ interface ExpenseDao {
             SUM(CASE WHEN type = 'Credit' THEN amount ELSE 0 END) as totalCredit,
             SUM(CASE WHEN type = 'Debit' THEN amount ELSE -amount END) as outstandingBalance
         FROM expenses
-        WHERE category = 'Friends' AND friendId IS NOT NULL AND friendId != ''
+        WHERE syncStatus != 'Deleted' AND (category = 'Friends' OR category = 'Friend') AND friendId IS NOT NULL AND friendId != ''
         GROUP BY friendId
     """)
     fun getFriendBalances(): Flow<List<FriendBalance>>
 
-    @Query("SELECT * FROM expenses WHERE friendId = :friendName AND category = 'Friends' ORDER BY timestamp DESC")
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' AND friendId = :friendName AND (category = 'Friends' OR category = 'Friend') ORDER BY timestamp DESC")
     fun getTransactionsByFriend(friendName: String): Flow<List<Expense>>
 
     @Query("UPDATE expenses SET friendId = NULL WHERE friendId = :friendName")
@@ -109,13 +122,14 @@ interface ExpenseDao {
     @Query("DELETE FROM expenses WHERE category = :categoryName")
     suspend fun deleteExpensesByCategory(categoryName: String)
 
-    @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
+    @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>
 
     @Query("""
         SELECT category, SUM(amount) as totalAmount 
         FROM expenses 
-        WHERE type = 'Debit' 
+        WHERE syncStatus != 'Deleted'
+          AND type = 'Debit' 
           AND strftime('%m', datetime(timestamp / 1000, 'unixepoch')) = :month
           AND strftime('%Y', datetime(timestamp / 1000, 'unixepoch')) = :year
         GROUP BY category 
@@ -123,15 +137,15 @@ interface ExpenseDao {
     """)
     fun getExpensesByCategoryFiltered(month: String, year: String): Flow<List<CategoryExpense>>
 
-    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Credit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Credit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
     fun getTotalUpiBankCredits(): Flow<Double?>
 
-    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
+    @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
     fun getTotalUpiBankDebits(): Flow<Double?>
 
-    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Credit' AND paymentMethod = 'Cash'")
+    @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Credit' AND paymentMethod = 'Cash'")
     fun getTotalCashCredits(): Flow<Double?>
 
-    @Query("SELECT SUM(amount) FROM expenses WHERE type = 'Debit' AND paymentMethod = 'Cash'")
+    @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' AND paymentMethod = 'Cash'")
     fun getTotalCashDebits(): Flow<Double?>
 }
