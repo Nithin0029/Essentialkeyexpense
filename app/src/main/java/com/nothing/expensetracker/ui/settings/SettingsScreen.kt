@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +38,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.nothing.expensetracker.auth.AuthState
+import com.nothing.expensetracker.util.formatCurrency
 import java.util.*
 
 enum class MpinVerifyReason {
@@ -49,6 +52,8 @@ fun SettingsScreen(
     onNavigateToCreateMpin: () -> Unit,
     onNavigateToChangeMpin: () -> Unit,
     onNavigateToCategoryManagement: () -> Unit,
+    onNavigateToPaymentMethodManagement: () -> Unit,
+    onNavigateToAutopay: () -> Unit,
     onNavigateToOverallBudget: () -> Unit,
     onNavigateToCategoryBudgets: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -161,6 +166,14 @@ fun SettingsScreen(
 
             CategoryManagementCard(
                 onClick = onNavigateToCategoryManagement
+            )
+
+            PaymentMethodManagementCard(
+                onClick = onNavigateToPaymentMethodManagement
+            )
+
+            AutopayManagementCard(
+                onClick = onNavigateToAutopay
             )
 
             BudgetManagementSection(
@@ -609,7 +622,7 @@ fun FinancialSettingsCard(
 
             SettingRow(
                 label = "Opening Bank Balance",
-                value = "₹%,.0f".format(Locale.getDefault(), openingBankBalance),
+                value = formatCurrency(openingBankBalance),
                 action = {
                     IconButton(onClick = onEditBank) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -621,7 +634,7 @@ fun FinancialSettingsCard(
 
             SettingRow(
                 label = "Opening Cash Balance",
-                value = "₹%,.0f".format(Locale.getDefault(), openingCashBalance),
+                value = formatCurrency(openingCashBalance),
                 action = {
                     IconButton(onClick = onEditCash) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -914,6 +927,96 @@ fun CategoryManagementCard(
                     )
                     Text(
                         text = "Add, edit, or remove expense categories",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaymentMethodManagementCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Payment Methods",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Add, edit, or remove payment methods",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AutopayManagementCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1A1A1A),
+            contentColor = Color.White
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Repeat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Autopay",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Set up recurring monthly transactions like rent or SIPs",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )

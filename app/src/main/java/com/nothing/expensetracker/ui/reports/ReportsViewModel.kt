@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
+import com.nothing.expensetracker.ui.history.TransactionConstants
+import com.nothing.expensetracker.util.formatCurrency
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
@@ -139,27 +141,37 @@ class ReportsViewModel @Inject constructor(
         val categoryMap = mutableMapOf<String, Double>()
         val methodMap = mutableMapOf<String, Double>()
         
-        var friendsOweYou = 0.0
-        var youOweFriends = 0.0
         var friendTransactionCount = 0
+        val friendNetByName = mutableMapOf<String, Double>()
 
         expenses.forEach { expense ->
+            val isNonSpending = TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
             if (expense.type == "Credit") {
-                totalIncome += expense.amount
+                if (!isNonSpending) {
+                    totalIncome += expense.amount
+                }
             } else {
-                totalExpense += expense.amount
-                categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + expense.amount
-                methodMap[expense.paymentMethod] = methodMap.getOrDefault(expense.paymentMethod, 0.0) + expense.amount
+                if (!isNonSpending) {
+                    totalExpense += expense.amount
+                    categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + expense.amount
+                    methodMap[expense.paymentMethod] = methodMap.getOrDefault(expense.paymentMethod, 0.0) + expense.amount
+                }
             }
 
             if (expense.category == "Friends" || expense.category == "Friend") {
                 friendTransactionCount++
-                if (expense.type == "Debit") {
-                    friendsOweYou += expense.amount
-                } else {
-                    youOweFriends += expense.amount
-                }
+                val friendName = expense.friendId ?: ""
+                val delta = if (expense.type == "Debit") expense.amount else -expense.amount
+                friendNetByName[friendName] = friendNetByName.getOrDefault(friendName, 0.0) + delta
             }
+        }
+
+        // Net each friend's balance individually before aggregating, so one friend
+        // you owe doesn't cancel out against another friend who owes you.
+        var friendsOweYou = 0.0
+        var youOweFriends = 0.0
+        friendNetByName.values.forEach { net ->
+            if (net > 0) friendsOweYou += net else youOweFriends += -net
         }
 
         val summary = SummaryData(
@@ -215,15 +227,15 @@ class ReportsViewModel @Inject constructor(
         }
 
         if (summary.savings > 0) {
-            insights.add("You saved ₹${summary.savings.toInt()} this period.")
+            insights.add("You saved ${formatCurrency(summary.savings)} this period.")
         } else if (summary.savings < 0) {
-            insights.add("Your expenses exceeded your income by ₹${(-summary.savings).toInt()}.")
+            insights.add("Your expenses exceeded your income by ${formatCurrency(-summary.savings)}.")
         }
 
         if (friends.outstandingBalance > 0) {
-            insights.add("Friends owe you ₹${friends.outstandingBalance.toInt()}.")
+            insights.add("Friends owe you ${formatCurrency(friends.outstandingBalance)}.")
         } else if (friends.outstandingBalance < 0) {
-            insights.add("You owe friends ₹${(-friends.outstandingBalance).toInt()}.")
+            insights.add("You owe friends ${formatCurrency(-friends.outstandingBalance)}.")
         }
 
         return insights

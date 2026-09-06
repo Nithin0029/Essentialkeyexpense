@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Friend
 import com.nothing.expensetracker.ui.friends.FriendWithBalance
+import com.nothing.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -281,9 +282,9 @@ fun FriendItem(
                         else -> "Settled"
                     }
                     val amountText = when {
-                        balance.outstandingBalance > 0 -> "+ ₹${balance.outstandingBalance.toInt()}"
-                        balance.outstandingBalance < 0 -> "- ₹${(-balance.outstandingBalance).toInt()}"
-                        else -> "₹0"
+                        balance.outstandingBalance > 0 -> "+ ${formatCurrency(balance.outstandingBalance)}"
+                        balance.outstandingBalance < 0 -> "- ${formatCurrency(-balance.outstandingBalance)}"
+                        else -> formatCurrency(0.0)
                     }
                     val balanceColor = when {
                         balance.outstandingBalance > 0 -> Color(0xFF4CAF50) // Green

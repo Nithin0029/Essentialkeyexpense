@@ -17,6 +17,7 @@ fun HistoryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val methods by viewModel.paymentMethods.collectAsState()
 
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -56,6 +57,7 @@ fun HistoryScreen(
                 Box(modifier = Modifier.weight(1f)) {
                     TransactionList(
                         expenses = uiState.expenses,
+                        sortOption = uiState.sortOption,
                         onExpenseClick = { expense ->
                             selectedExpense = expense
                             showBottomSheet = true
@@ -84,6 +86,7 @@ fun HistoryScreen(
         HistoryFilterSheet(
             initialFilterState = uiState.filterState,
             categories = categories,
+            methods = methods,
             onDismiss = { showFilterSheet = false },
             onApply = { newFilters ->
                 viewModel.applyFilters(newFilters)

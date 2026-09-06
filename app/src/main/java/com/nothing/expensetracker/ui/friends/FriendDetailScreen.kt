@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.FriendBalance
+import com.nothing.expensetracker.ui.history.TransactionConstants
+import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,6 +31,7 @@ fun FriendDetailScreen(
     viewModel: FriendDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
     var showEditDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -90,6 +93,7 @@ fun FriendDetailScreen(
                         SettleUpDialog(
                             friendName = uiState.friendName,
                             currentBalance = uiState.balance?.outstandingBalance ?: 0.0,
+                            paymentMethods = paymentMethods,
                             onDismiss = { showSettleDialog = false },
                             onConfirm = { amount, method, notes ->
                                 viewModel.settleUp(amount, method, notes)
@@ -157,7 +161,7 @@ fun FriendSummaryHeader(
             }
             
             Text(
-                text = (if (outstanding >= 0) "₹" else "-₹") + "%,.0f".format(Locale.getDefault(), Math.abs(outstanding)),
+                text = (if (outstanding >= 0) "" else "-") + formatCurrency(Math.abs(outstanding)),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = balanceColor,
@@ -199,7 +203,7 @@ private fun StatItem(label: String, value: Double, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Text(
-            text = "₹%,.0f".format(Locale.getDefault(), value),
+            text = formatCurrency(value),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = color
@@ -260,7 +264,7 @@ fun FriendTransactionItem(transaction: Expense) {
             }
             
             Text(
-                text = (if (isDebit) "+" else "-") + "₹${transaction.amount.toInt()}",
+                text = (if (isDebit) "+" else "-") + formatCurrency(transaction.amount),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = color
@@ -274,15 +278,20 @@ fun FriendTransactionItem(transaction: Expense) {
 fun SettleUpDialog(
     friendName: String,
     currentBalance: Double,
+    paymentMethods: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (Double, String, String) -> Unit
 ) {
     var amount by remember { mutableStateOf(Math.abs(currentBalance).toString()) }
     var selectedMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("Settlement") }
-    
+
     val isCredit = currentBalance > 0
-    val methods = if (isCredit) listOf("Bank", "UPI", "Cash", "RAS") else listOf("UPI", "Cash", "Bank")
+    val methods = TransactionConstants.getAvailableMethods(
+        type = if (isCredit) "Credit" else "Debit",
+        category = if (isCredit) "Friend" else "Friends",
+        availableMethods = paymentMethods
+    )
     var methodExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -291,14 +300,14 @@ fun SettleUpDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    text = "Current Balance: ₹%,.0f".format(Locale.getDefault(), currentBalance),
+                    text = "Current Balance: ${formatCurrency(currentBalance)}",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) amount = it },
+                    onValueChange = { if (com.nothing.expensetracker.ui.history.TransactionConstants.isValidAmountInput(it)) amount = it },
                     label = { Text("Settlement Amount") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(

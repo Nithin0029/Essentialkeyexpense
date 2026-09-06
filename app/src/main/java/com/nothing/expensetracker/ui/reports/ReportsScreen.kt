@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.nothing.expensetracker.util.formatCurrency
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.ui.settings.BudgetViewModel
@@ -264,7 +265,7 @@ fun SummaryCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isCurrency) "₹%,.0f".format(amount) else amount.toInt().toString(),
+                text = if (isCurrency) formatCurrency(amount) else amount.toInt().toString(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -365,7 +366,7 @@ fun PaymentMethodAnalysis(reports: List<PaymentMethodReport>) {
             Column {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(text = report.method, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                    Text(text = "₹%,.0f".format(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text(text = formatCurrency(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
@@ -384,16 +385,16 @@ fun FriendsSummarySection(summary: FriendsReport) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = "Friends Owe You", color = Color.Gray)
-            Text(text = "₹%,.0f".format(summary.friendsOweYou), color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+            Text(text = formatCurrency(summary.friendsOweYou), color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
         }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = "You Owe Friends", color = Color.Gray)
-            Text(text = "₹%,.0f".format(summary.youOweFriends), color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
+            Text(text = formatCurrency(summary.youOweFriends), color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
         }
         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(text = "Outstanding Balance", color = Color.White)
-            Text(text = "₹%,.0f".format(summary.outstandingBalance), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            Text(text = formatCurrency(summary.outstandingBalance), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -405,7 +406,7 @@ fun TopCategoriesList(reports: List<CategoryReport>) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "${index + 1}.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray, modifier = Modifier.width(24.dp))
                 Text(text = report.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, modifier = Modifier.weight(1f))
-                Text(text = "₹%,.0f".format(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                Text(text = formatCurrency(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -499,8 +500,8 @@ fun BudgetRealityItem(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "Spent: ₹%,.0f".format(spent), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            Text(text = "Limit: ₹%,.0f".format(limit), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(text = "Spent: ${formatCurrency(spent)}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(text = "Limit: ${formatCurrency(limit)}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
     }
 }

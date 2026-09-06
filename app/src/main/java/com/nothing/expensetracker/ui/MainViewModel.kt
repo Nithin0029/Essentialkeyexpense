@@ -8,6 +8,7 @@ import com.nothing.expensetracker.data.local.CategoryExpense
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import com.nothing.expensetracker.data.repository.FriendRepository
+import com.nothing.expensetracker.ui.history.TransactionConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -47,7 +48,8 @@ class MainViewModel @Inject constructor(
     private val repository: ExpenseRepository,
     private val friendRepository: FriendRepository,
     private val appPrefs: AppPrefs,
-    private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler
+    private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler,
+    private val autopayScheduler: com.nothing.expensetracker.feature.autopay.AutopayScheduler
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SimpleDateFormat("MM", Locale.getDefault()).format(Date()))
@@ -61,10 +63,16 @@ class MainViewModel @Inject constructor(
             try {
                 Log.d("MainViewModel", "Startup: Seeding default categories...")
                 repository.seedDefaultCategories()
-                
+                repository.seedDefaultPaymentMethods()
+
                 Log.d("MainViewModel", "Startup: Scheduling background sync...")
                 syncScheduler.scheduleSync()
-                
+
+                Log.d("MainViewModel", "Startup: Scheduling autopay checks...")
+                autopayScheduler.scheduleDailyCheck()
+                autopayScheduler.runNow()
+
+
                 // Diagnostic log for friends (wrapped in secondary try-catch)
                 launch {
                     try {
@@ -126,23 +134,28 @@ class MainViewModel @Inject constructor(
             allExpenses.forEach { expense ->
                 val amount = expense.amount
                 val isDebit = expense.type == "Debit"
+                val isTransfer = TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
                 
                 if (isDebit) {
-                    expenseTotal += amount
-                    categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
-                    
-                    val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
-                    if (date.isEqual(now)) {
-                        todaySpending += amount
-                    }
-                    if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
-                        weekSpending += amount
-                    }
-                    if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
-                        monthSpending += amount
+                    if (!isTransfer) {
+                        expenseTotal += amount
+                        categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
+                        
+                        val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
+                        if (date.isEqual(now)) {
+                            todaySpending += amount
+                        }
+                        if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
+                            weekSpending += amount
+                        }
+                        if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
+                            monthSpending += amount
+                        }
                     }
                 } else {
-                    income += amount
+                    if (!isTransfer) {
+                        income += amount
+                    }
                 }
             }
 

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -77,7 +78,7 @@ fun RecentTransactionsCard(transactions: List<Expense>) {
                         date = dateFormat.format(Date(expense.timestamp)),
                         method = expense.paymentMethod,
                         notes = expense.notes,
-                        amount = "${if (expense.type == "Credit") "+" else "-"}₹${expense.amount.toInt()}",
+                        amount = "${if (expense.type == "Credit") "+" else "-"}${formatCurrency(expense.amount)}",
                         icon = getCategoryIcon(expense.category),
                         amountColor = if (expense.type == "Credit") Color(0xFF4CAF50) else Color(0xFFF44336)
                     )

@@ -55,6 +55,7 @@ fun ConfirmMpinScreen(
                 viewModel.saveMpin(mpin)
                 onMpinConfirmed()
             } else {
+                kotlinx.coroutines.delay(300) // Small delay to show the last dot
                 onMismatch()
                 viewModel.clearMpin()
             }
@@ -81,6 +82,7 @@ fun UnlockScreen(
     
     LaunchedEffect(mpin) {
         if (mpin.length == 4) {
+            kotlinx.coroutines.delay(200) // Small delay to show the last dot
             if (viewModel.verifyMpin(mpin)) {
                 onUnlocked()
             }
@@ -113,6 +115,7 @@ fun ChangeMpinScreen(
         if (mpin.length == 4) {
             when (step) {
                 1 -> {
+                    kotlinx.coroutines.delay(200)
                     if (viewModel.verifyMpin(mpin)) {
                         currentMpin = mpin
                         step = 2
@@ -129,6 +132,7 @@ fun ChangeMpinScreen(
                         viewModel.saveMpin(mpin)
                         onNavigateBack()
                     } else {
+                        kotlinx.coroutines.delay(300)
                         viewModel.clearMpin()
                     }
                 }

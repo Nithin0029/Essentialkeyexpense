@@ -49,6 +49,8 @@ class FriendDetailViewModel @Inject constructor(
         initialValue = FriendDetailUiState(friendName = friendName)
     )
 
+    fun getAllPaymentMethods() = expenseRepository.getPaymentMethodNames()
+
     fun settleUp(amount: Double, paymentMethod: String, notes: String) {
         val currentBalance = uiState.value.balance?.outstandingBalance ?: 0.0
         if (currentBalance == 0.0) return

@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
+import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -237,7 +239,7 @@ fun AssetsOverviewCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "₹%,.0f".format(Locale.getDefault(), totalAssets),
+                text = formatCurrency(totalAssets),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -258,7 +260,7 @@ fun AssetsOverviewCard(
                         color = Color.Gray
                     )
                     Text(
-                        text = "₹%,.0f".format(Locale.getDefault(), bankBalance),
+                        text = formatCurrency(bankBalance),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -271,7 +273,7 @@ fun AssetsOverviewCard(
                         color = Color.Gray
                     )
                     Text(
-                        text = "₹%,.0f".format(Locale.getDefault(), cashBalance),
+                        text = formatCurrency(cashBalance),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -306,7 +308,7 @@ fun BudgetSummaryCard(
                 ) {
                     Text(text = "Monthly Budget", style = MaterialTheme.typography.titleMedium, color = Color.White)
                     Text(
-                        text = "₹%,.0f".format(usage.budget.amount),
+                        text = formatCurrency(usage.budget.amount),
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.Gray
                     )
@@ -328,12 +330,12 @@ fun BudgetSummaryCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = "₹%,.0f spent".format(usage.spent),
+                        text = "${formatCurrency(usage.spent)} spent",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
                     )
                     Text(
-                        text = "₹%,.0f left".format(usage.remaining),
+                        text = "${formatCurrency(usage.remaining)} left",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (usage.remaining < 1000) Color.Red else Color.Gray
                     )

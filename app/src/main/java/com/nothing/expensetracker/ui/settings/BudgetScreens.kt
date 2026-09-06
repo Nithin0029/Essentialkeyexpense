@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nothing.expensetracker.util.formatCurrency
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,7 +89,7 @@ fun OverallBudgetScreen(
                         }
                         
                         Text(
-                            text = "₹%,.0f".format(budget.amount),
+                            text = formatCurrency(budget.amount),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -108,11 +109,11 @@ fun OverallBudgetScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
                                 Text("Spent", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-                                Text("₹%,.0f".format(usage.spent), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(formatCurrency(usage.spent), color = Color.White, fontWeight = FontWeight.Bold)
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("Remaining", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-                                Text("₹%,.0f".format(usage.remaining), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(formatCurrency(usage.remaining), color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -222,7 +223,7 @@ fun CategoryBudgetCard(
                 Column {
                     Text(text = usage.categoryName, style = MaterialTheme.typography.titleMedium, color = Color.White)
                     Text(
-                        text = if (usage.budget != null) "₹%,.0f limit".format(usage.budget.amount) else "No limit set",
+                        text = if (usage.budget != null) "${formatCurrency(usage.budget.amount)} limit" else "No limit set",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
@@ -250,7 +251,7 @@ fun CategoryBudgetCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        text = "₹%,.0f spent".format(usage.spent),
+                        text = "${formatCurrency(usage.spent)} spent",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray
                     )

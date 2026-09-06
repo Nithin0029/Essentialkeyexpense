@@ -26,6 +26,10 @@ android {
                 enable = false
             }
         }
+        debug {
+            applicationIdSuffix = ".debug"
+            resValue("string", "app_name", "Expense Tracker (Debug)")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -34,6 +38,7 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        resValues = true
     }
 
     packaging {

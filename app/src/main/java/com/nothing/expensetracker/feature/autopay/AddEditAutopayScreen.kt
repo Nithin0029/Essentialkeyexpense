@@ -1,63 +1,49 @@
-package com.nothing.expensetracker.ui.history
+package com.nothing.expensetracker.feature.autopay
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.data.local.AutopayRule
 import com.nothing.expensetracker.ui.history.TransactionConstants
-import android.widget.Toast
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionScreen(
+fun AddEditAutopayScreen(
     onNavigateBack: () -> Unit,
     onNavigateToFriends: () -> Unit,
-    viewModel: EditTransactionViewModel = hiltViewModel()
+    viewModel: AddEditAutopayViewModel = hiltViewModel()
 ) {
-    val expenseState by viewModel.expense.collectAsState()
-    val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val ruleState by viewModel.rule.collectAsState()
+    val saved by viewModel.saved.collectAsState()
 
-    LaunchedEffect(Unit) {
-        viewModel.uiEvent.collect { event ->
-            when (event) {
-                is EditTransactionViewModel.UiEvent.Success -> {
-                    onNavigateBack()
-                }
-                is EditTransactionViewModel.UiEvent.Info -> {
-                    Toast.makeText(context, event.message, Toast.LENGTH_LONG).show()
-                    onNavigateBack()
-                }
-            }
-        }
+    LaunchedEffect(saved) {
+        if (saved) onNavigateBack()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
-                        text = if (expenseState?.id == 0L) "Add Transaction" else "Edit Transaction", 
+                        text = if (ruleState?.id == 0L) "New Autopay" else "Edit Autopay",
                         fontWeight = FontWeight.Bold
-                    ) 
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
@@ -76,87 +62,64 @@ fun EditTransactionScreen(
         val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
         val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
         val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
-        expenseState?.let { expense ->
-            EditTransactionContent(
+
+        ruleState?.let { rule ->
+            AutopayForm(
                 modifier = Modifier.padding(paddingValues),
-                expense = expense,
+                rule = rule,
                 friends = friends,
                 categories = categories,
                 paymentMethods = paymentMethods,
-                isSaving = uiState.isSaving,
-                onSave = { updatedExpense ->
-                    viewModel.updateExpense(updatedExpense)
-                },
+                onSave = { viewModel.save(it) },
                 onCancel = onNavigateBack,
                 onNavigateToFriends = onNavigateToFriends
             )
-        } ?: run {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
+        } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditTransactionContent(
+private fun AutopayForm(
     modifier: Modifier = Modifier,
-    expense: Expense,
+    rule: AutopayRule,
     friends: List<String>,
     categories: List<String>,
     paymentMethods: List<String>,
-    isSaving: Boolean,
-    onSave: (Expense) -> Unit,
+    onSave: (AutopayRule) -> Unit,
     onCancel: () -> Unit,
     onNavigateToFriends: () -> Unit
 ) {
     val context = LocalContext.current
-    var amount by remember { mutableStateOf(if (expense.amount == 0.0) "" else expense.amount.toString()) }
-    var category by remember { mutableStateOf(expense.category) }
-    var type by remember { mutableStateOf(expense.type) }
-    var paymentMethod by remember { mutableStateOf(expense.paymentMethod) }
-    var notes by remember { mutableStateOf(expense.notes) }
-    var friendId by remember { mutableStateOf(expense.friendId ?: "") }
-    var timestamp by remember { mutableLongStateOf(expense.timestamp) }
+    var amount by remember { mutableStateOf(if (rule.amount == 0.0) "" else rule.amount.toString()) }
+    var description by remember { mutableStateOf(rule.description) }
+    var category by remember { mutableStateOf(rule.category) }
+    var type by remember { mutableStateOf(rule.type) }
+    var paymentMethod by remember { mutableStateOf(rule.paymentMethod) }
+    var friendId by remember { mutableStateOf(rule.friendId ?: "") }
+    var dayOfMonth by remember { mutableIntStateOf(rule.dayOfMonth) }
+    var isActive by remember { mutableStateOf(rule.isActive) }
 
     val types = TransactionConstants.TRANSACTION_TYPES
     val creditCategories = TransactionConstants.CREDIT_CATEGORIES
-
     val currentCategories = if (type == "Credit") creditCategories else categories
     val isFriendCategory = TransactionConstants.isFriendCategory(type, category)
-    
     val methods = TransactionConstants.getAvailableMethods(type, category, paymentMethods)
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
     var methodExpanded by remember { mutableStateOf(false) }
-    var showDatePicker by remember { mutableStateOf(false) }
     var friendExpanded by remember { mutableStateOf(false) }
+    var dayExpanded by remember { mutableStateOf(false) }
 
-    val dateFormatter = remember { SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()) }
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = timestamp)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { timestamp = it }
-                    showDatePicker = false
-                }) {
-                    Text("OK")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
-            }
-        ) {
-            DatePicker(state = datePickerState)
-        }
-    }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = Color.DarkGray,
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White
+    )
 
     Column(
         modifier = modifier
@@ -165,25 +128,14 @@ fun EditTransactionContent(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Date
+        // Name
         OutlinedTextField(
-            value = dateFormatter.format(Date(timestamp)),
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Date") },
-            trailingIcon = {
-                IconButton(onClick = { showDatePicker = true }) {
-                    Icon(Icons.Default.CalendarToday, contentDescription = "Select Date")
-                }
-            },
+            value = description,
+            onValueChange = { description = it },
+            label = { Text("Name (e.g. Rent, Netflix)") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            )
+            colors = fieldColors
         )
 
         // Amount
@@ -195,13 +147,47 @@ fun EditTransactionContent(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
-            )
+            colors = fieldColors
         )
+
+        // Day of Month
+        Column {
+            ExposedDropdownMenuBox(
+                expanded = dayExpanded,
+                onExpandedChange = { dayExpanded = !dayExpanded }
+            ) {
+                OutlinedTextField(
+                    value = "Day $dayOfMonth of every month",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Repeats On") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dayExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = fieldColors
+                )
+                ExposedDropdownMenu(
+                    expanded = dayExpanded,
+                    onDismissRequest = { dayExpanded = false }
+                ) {
+                    (1..31).forEach { day ->
+                        DropdownMenuItem(
+                            text = { Text(day.toString()) },
+                            onClick = {
+                                dayOfMonth = day
+                                dayExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "If a month has fewer days, it runs on the last day of that month instead.",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
+        }
 
         // Type
         ExposedDropdownMenuBox(
@@ -216,12 +202,7 @@ fun EditTransactionContent(
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
+                colors = fieldColors
             )
             ExposedDropdownMenu(
                 expanded = typeExpanded,
@@ -234,10 +215,7 @@ fun EditTransactionContent(
                             if (type != t) {
                                 type = t
                                 category = TransactionConstants.getInitialCategory(t, categories)
-                                // Reset payment method if RAS was selected but is no longer valid
-                                if (paymentMethod == "RAS") {
-                                    paymentMethod = "UPI"
-                                }
+                                if (paymentMethod == "RAS") paymentMethod = "UPI"
                             }
                             typeExpanded = false
                         }
@@ -259,12 +237,7 @@ fun EditTransactionContent(
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
+                colors = fieldColors
             )
             ExposedDropdownMenu(
                 expanded = categoryExpanded,
@@ -276,7 +249,6 @@ fun EditTransactionContent(
                         onClick = {
                             category = c
                             categoryExpanded = false
-                            // Reset payment method if RAS was selected but is no longer valid for the new category
                             if (paymentMethod == "RAS" && !(type == "Credit" && category == "Friend")) {
                                 paymentMethod = "UPI"
                             }
@@ -299,12 +271,7 @@ fun EditTransactionContent(
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
-                )
+                colors = fieldColors
             )
             ExposedDropdownMenu(
                 expanded = methodExpanded,
@@ -337,12 +304,7 @@ fun EditTransactionContent(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    )
+                    colors = fieldColors
                 )
                 DropdownMenu(
                     expanded = friendExpanded,
@@ -356,7 +318,7 @@ fun EditTransactionContent(
                         )
                         DropdownMenuItem(
                             text = { Text("Go to Friends Screen", color = MaterialTheme.colorScheme.primary) },
-                            onClick = { 
+                            onClick = {
                                 friendExpanded = false
                                 onNavigateToFriends()
                             }
@@ -376,20 +338,19 @@ fun EditTransactionContent(
             }
         }
 
-        // Notes
-        OutlinedTextField(
-            value = notes,
-            onValueChange = { notes = it },
-            label = { Text("Notes") },
+        // Active toggle
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Active", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+            Switch(
+                checked = isActive,
+                onCheckedChange = { isActive = it },
+                colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary)
             )
-        )
+        }
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -409,36 +370,31 @@ fun EditTransactionContent(
             Button(
                 onClick = {
                     val amountVal = amount.toDoubleOrNull() ?: 0.0
-                    if (amountVal > 0 && category.isNotBlank() && type.isNotBlank() && paymentMethod.isNotBlank()) {
+                    if (amountVal > 0 && category.isNotBlank() && paymentMethod.isNotBlank()) {
                         if (isFriendCategory && friendId.isBlank()) {
                             Toast.makeText(context, "Please select a friend.", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        onSave(expense.copy(
-                            amount = amountVal,
-                            category = category,
-                            type = type,
-                            paymentMethod = paymentMethod,
-                            notes = notes,
-                            friendId = if (isFriendCategory) friendId else null,
-                            timestamp = timestamp,
-                            syncStatus = "Pending" // Mark for sync
-                        ))
+                        onSave(
+                            rule.copy(
+                                amount = amountVal,
+                                description = description.trim(),
+                                category = category,
+                                type = type,
+                                paymentMethod = paymentMethod,
+                                friendId = if (isFriendCategory) friendId else null,
+                                dayOfMonth = dayOfMonth,
+                                isActive = isActive
+                            )
+                        )
+                    } else {
+                        Toast.makeText(context, "Enter a valid amount and category.", Toast.LENGTH_SHORT).show()
                     }
                 },
                 modifier = Modifier.weight(1f),
-                enabled = !isSaving,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Save")
-                }
+                Text("Save")
             }
         }
     }

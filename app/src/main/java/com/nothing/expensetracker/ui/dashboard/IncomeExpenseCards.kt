@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.nothing.expensetracker.util.formatCurrency
 
 import java.util.Locale
 
@@ -53,7 +54,7 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "₹%,.0f".format(Locale.getDefault(), income),
+                    text = formatCurrency(income),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -97,7 +98,7 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "₹%,.0f".format(Locale.getDefault(), expense),
+                    text = formatCurrency(expense),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.White

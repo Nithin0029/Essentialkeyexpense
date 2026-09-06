@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Locale
+import com.nothing.expensetracker.util.formatCurrency
 
 @Composable
 fun HistoryStatistics(statistics: HistoryStatistics) {
@@ -29,12 +29,12 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
             StatItem(label = "Count", value = statistics.count.toString())
             StatItem(
                 label = "Income",
-                value = "₹%,.0f".format(Locale.getDefault(), statistics.totalIncome),
+                value = formatCurrency(statistics.totalIncome),
                 valueColor = Color(0xFF4CAF50)
             )
             StatItem(
                 label = "Expense",
-                value = "₹%,.0f".format(Locale.getDefault(), statistics.totalExpense),
+                value = formatCurrency(statistics.totalExpense),
                 valueColor = Color(0xFFF44336)
             )
         }

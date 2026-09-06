@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 fun HistoryFilterSheet(
     initialFilterState: HistoryFilterState,
     categories: List<String>,
+    methods: List<String>,
     onDismiss: () -> Unit,
     onApply: (HistoryFilterState) -> Unit
 ) {
@@ -62,7 +63,7 @@ fun HistoryFilterSheet(
             // Payment Method Filters
             FilterGroup(
                 title = "Method",
-                options = listOf("All", "UPI", "Bank", "Cash"),
+                options = methods,
                 selected = draftState.methodFilter,
                 onSelected = { draftState = draftState.copy(methodFilter = it) }
             )

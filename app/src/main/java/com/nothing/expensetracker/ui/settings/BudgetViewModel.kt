@@ -54,7 +54,9 @@ class BudgetViewModel @Inject constructor(
             val date = java.time.Instant.ofEpochMilli(expense.timestamp)
                 .atZone(java.time.ZoneId.systemDefault())
                 .toLocalDate()
-            date.monthValue == currentMonth && date.year == currentYear && expense.type == "Debit"
+            date.monthValue == currentMonth && date.year == currentYear &&
+                expense.type == "Debit" &&
+                !com.nothing.expensetracker.ui.history.TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
         }
 
         val totalSpent = monthExpenses.sumOf { it.amount }

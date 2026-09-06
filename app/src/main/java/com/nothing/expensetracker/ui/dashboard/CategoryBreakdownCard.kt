@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.nothing.expensetracker.data.local.CategoryExpense
+import com.nothing.expensetracker.util.formatCurrency
 import java.util.Locale
 
 @Composable
@@ -81,7 +82,7 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
                         color = Color.Gray
                     )
                     Text(
-                        text = "₹%,.0f".format(Locale.getDefault(), totalExpense),
+                        text = formatCurrency(totalExpense),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -97,7 +98,7 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
                     
                     CategoryItem(
                         name = category.category,
-                        amount = "₹%,.0f".format(Locale.getDefault(), category.totalAmount),
+                        amount = formatCurrency(category.totalAmount),
                         percentage = "$percentage%",
                         progress = ratio,
                         color = colors.getOrElse(index) { Color.Gray }

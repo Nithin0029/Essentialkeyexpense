@@ -22,6 +22,7 @@ fun QuickAddOverlayContent(
     initialColor: String,
     debitCategories: List<String>,
     friends: List<String>,
+    paymentMethods: List<String>,
     onSaveExpense: (
         amount: Double,
         description: String,
@@ -50,7 +51,7 @@ fun QuickAddOverlayContent(
 
     val isFriendCategory = com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(transactionType, selectedCategory)
     
-    val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(transactionType, selectedCategory)
+    val availableMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(transactionType, selectedCategory, paymentMethods)
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
@@ -88,9 +89,10 @@ fun QuickAddOverlayContent(
                 // Amount
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = { if (com.nothing.expensetracker.ui.history.TransactionConstants.isValidAmountInput(it)) amountText = it },
                     label = { Text("Amount (₹)", color = Color.Gray) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = { Text("0.00", color = Color.Gray) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
@@ -258,7 +260,7 @@ fun QuickAddOverlayContent(
                         expanded = paymentExpanded,
                         onDismissRequest = { paymentExpanded = false }
                     ) {
-                        paymentMethods.forEach { method ->
+                        availableMethods.forEach { method ->
                             DropdownMenuItem(
                                 text = { Text(method) },
                                 onClick = {

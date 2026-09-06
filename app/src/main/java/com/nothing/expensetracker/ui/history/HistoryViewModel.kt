@@ -58,6 +58,10 @@ class HistoryViewModel @Inject constructor(
         .map { listOf("All") + it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
 
+    val paymentMethods: StateFlow<List<String>> = repository.getPaymentMethodNames()
+        .map { listOf("All") + it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
+
     val uiState: StateFlow<HistoryUiState> = combine(
         _searchQuery.debounce(300),
         _filterState,
@@ -122,9 +126,11 @@ class HistoryViewModel @Inject constructor(
     private fun calculateStatistics(expenses: List<Expense>): HistoryStatistics {
         var income = 0.0
         var expense = 0.0
-        expenses.forEach { 
-            if (it.type == "Credit") income += it.amount 
-            else expense += it.amount 
+        expenses.forEach {
+            if (!TransactionConstants.isNonSpendingCategory(it.type, it.category)) {
+                if (it.type == "Credit") income += it.amount
+                else expense += it.amount
+            }
         }
         return HistoryStatistics(
             count = expenses.size,

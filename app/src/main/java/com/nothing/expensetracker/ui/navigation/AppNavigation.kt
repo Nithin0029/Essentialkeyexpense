@@ -17,6 +17,9 @@ import com.nothing.expensetracker.ui.history.HistoryScreen
 import com.nothing.expensetracker.ui.reports.ReportsScreen
 import com.nothing.expensetracker.ui.settings.SettingsScreen
 import com.nothing.expensetracker.ui.settings.CategoryManagementScreen
+import com.nothing.expensetracker.ui.settings.PaymentMethodManagementScreen
+import com.nothing.expensetracker.feature.autopay.AutopayListScreen
+import com.nothing.expensetracker.feature.autopay.AddEditAutopayScreen
 import com.nothing.expensetracker.ui.settings.OverallBudgetScreen
 import com.nothing.expensetracker.ui.settings.CategoryBudgetsScreen
 import com.nothing.expensetracker.ui.auth.*
@@ -36,10 +39,12 @@ fun AppNavigation(
                        currentRoute?.startsWith("confirm_mpin") == true || 
                        currentRoute?.startsWith("unlock_app") == true
 
-    val startDestination = if (viewModel.isMpinSet()) {
-        Screen.UnlockApp.route
-    } else {
-        Screen.CreateMpin.route
+    val startDestination = remember {
+        if (viewModel.isMpinSet()) {
+            Screen.UnlockApp.route
+        } else {
+            Screen.CreateMpin.route
+        }
     }
 
     Scaffold(
@@ -119,6 +124,8 @@ fun AppNavigation(
                     onNavigateToCreateMpin = { navController.navigate(Screen.CreateMpin.route) },
                     onNavigateToChangeMpin = { navController.navigate(Screen.ChangeMpin.route) },
                     onNavigateToCategoryManagement = { navController.navigate(Screen.CategoryManagement.route) },
+                    onNavigateToPaymentMethodManagement = { navController.navigate(Screen.PaymentMethodManagement.route) },
+                    onNavigateToAutopay = { navController.navigate(Screen.AutopayList.route) },
                     onNavigateToOverallBudget = { navController.navigate(Screen.OverallBudget.route) },
                     onNavigateToCategoryBudgets = { navController.navigate(Screen.CategoryBudgets.route) }
                 )
@@ -148,6 +155,27 @@ fun AppNavigation(
             composable(Screen.CategoryManagement.route) {
                 CategoryManagementScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.PaymentMethodManagement.route) {
+                PaymentMethodManagementScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.AutopayList.route) {
+                AutopayListScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onAddRule = { navController.navigate("autopay_rule/0") },
+                    onEditRule = { ruleId -> navController.navigate("autopay_rule/$ruleId") }
+                )
+            }
+            composable(
+                route = Screen.AddEditAutopay.route,
+                arguments = listOf(navArgument("ruleId") { type = NavType.LongType })
+            ) {
+                AddEditAutopayScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToFriends = { navController.navigate(Screen.Friends.route) }
                 )
             }
             composable(Screen.OverallBudget.route) {

@@ -51,7 +51,8 @@ class QuickAddShortcutActivity : ComponentActivity() {
 
             val friends by repository.getAllFriends().collectAsState(initial = emptyList())
             val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
-            
+            val userPaymentMethods by repository.getPaymentMethodNames().collectAsState(initial = emptyList())
+
             val currentCategories = if (selectedType == "Credit") {
                 com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
             } else {
@@ -59,8 +60,8 @@ class QuickAddShortcutActivity : ComponentActivity() {
             }
 
             val isFriendCategory = com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)
-            
-            val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(selectedType, selectedCategory)
+
+            val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(selectedType, selectedCategory, userPaymentMethods)
 
             Box(
                 modifier = Modifier
@@ -84,9 +85,10 @@ class QuickAddShortcutActivity : ComponentActivity() {
                         // 1. Amount
                         OutlinedTextField(
                             value = amountText,
-                            onValueChange = { amountText = it },
+                            onValueChange = { if (com.nothing.expensetracker.ui.history.TransactionConstants.isValidAmountInput(it)) amountText = it },
                             label = { Text("Amount (₹)", color = Color.Gray) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            placeholder = { Text("0.00", color = Color.Gray) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             textStyle = LocalTextStyle.current.copy(color = Color.White),
                             modifier = Modifier.fillMaxWidth()
                         )
