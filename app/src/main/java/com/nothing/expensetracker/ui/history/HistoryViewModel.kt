@@ -172,4 +172,10 @@ class HistoryViewModel @Inject constructor(
             repository.deleteExpense(expense)
         }
     }
+
+    fun restoreExpense(expense: Expense) {
+        viewModelScope.launch {
+            repository.updateExpense(expense)
+        }
+    }
 }

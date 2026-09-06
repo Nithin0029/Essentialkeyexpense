@@ -9,6 +9,7 @@ import com.nothing.expensetracker.data.local.Budget
 import com.nothing.expensetracker.data.local.BudgetDao
 import com.nothing.expensetracker.data.local.PaymentMethod
 import com.nothing.expensetracker.data.local.PaymentMethodDao
+import com.nothing.expensetracker.feature.budget.BudgetAlertManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
@@ -21,7 +22,8 @@ class ExpenseRepository @Inject constructor(
     private val friendDao: FriendDao,
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
-    private val paymentMethodDao: PaymentMethodDao
+    private val paymentMethodDao: PaymentMethodDao,
+    private val budgetAlertManager: BudgetAlertManager
 ) {
     fun getAllExpenses() = expenseDao.getAllExpenses()
 
@@ -39,11 +41,13 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun insertExpense(expense: Expense): Long {
         val id = expenseDao.insertExpense(expense.copy(syncStatus = "Pending"))
+        budgetAlertManager.checkThresholds(expense)
         return id
     }
 
     suspend fun updateExpense(expense: Expense) {
         expenseDao.updateExpense(expense.copy(syncStatus = "Pending"))
+        budgetAlertManager.checkThresholds(expense)
     }
 
     suspend fun deleteExpense(expense: Expense) {

@@ -2,6 +2,7 @@ package com.nothing.expensetracker.ui.friends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.Friend
 import com.nothing.expensetracker.data.local.FriendBalance
 import com.nothing.expensetracker.data.repository.FriendRepository
@@ -101,15 +102,29 @@ class FriendsViewModel @Inject constructor(
         }
     }
 
-    fun deleteFriendOnly(friend: Friend) {
+    fun deleteFriendOnly(friend: Friend, onDeleted: (List<Expense>) -> Unit) {
         viewModelScope.launch {
-            repository.deleteFriendOnly(friend)
+            val transactions = repository.deleteFriendOnly(friend)
+            onDeleted(transactions)
         }
     }
 
-    fun deleteFriendAndTransactions(friend: Friend) {
+    fun restoreFriendOnly(friend: Friend, transactions: List<Expense>) {
         viewModelScope.launch {
-            repository.deleteFriendAndTransactions(friend)
+            repository.restoreFriendOnly(friend, transactions)
+        }
+    }
+
+    fun deleteFriendAndTransactions(friend: Friend, onDeleted: (List<Expense>) -> Unit) {
+        viewModelScope.launch {
+            val transactions = repository.deleteFriendAndTransactions(friend)
+            onDeleted(transactions)
+        }
+    }
+
+    fun restoreFriendAndTransactions(friend: Friend, transactions: List<Expense>) {
+        viewModelScope.launch {
+            repository.restoreFriendAndTransactions(friend, transactions)
         }
     }
 }

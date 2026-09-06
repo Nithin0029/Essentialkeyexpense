@@ -85,6 +85,12 @@ class PaymentMethodViewModel @Inject constructor(
         }
     }
 
+    fun restorePaymentMethod(method: PaymentMethod) {
+        viewModelScope.launch {
+            repository.updatePaymentMethod(method.name, method)
+        }
+    }
+
     fun moveTransactionsAndDelete(method: PaymentMethod, replacementName: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             repository.deletePaymentMethodAndMoveTransactions(method, replacementName)

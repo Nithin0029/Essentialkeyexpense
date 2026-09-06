@@ -160,7 +160,19 @@ fun FriendsScreen(
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.deleteFriendOnly(friendToDelete!!)
+                            val toDelete = friendToDelete!!
+                            viewModel.deleteFriendOnly(toDelete) { transactions ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "\"${toDelete.name}\" deleted",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreFriendOnly(toDelete, transactions)
+                                    }
+                                }
+                            }
                             friendToDelete = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
@@ -195,7 +207,19 @@ fun FriendsScreen(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.deleteFriendOnly(friendToDelete!!)
+                                val toDelete = friendToDelete!!
+                                viewModel.deleteFriendOnly(toDelete) { transactions ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"${toDelete.name}\" deleted",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreFriendOnly(toDelete, transactions)
+                                        }
+                                    }
+                                }
                                 friendToDelete = null
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -205,7 +229,19 @@ fun FriendsScreen(
                         }
                         Button(
                             onClick = {
-                                viewModel.deleteFriendAndTransactions(friendToDelete!!)
+                                val toDelete = friendToDelete!!
+                                viewModel.deleteFriendAndTransactions(toDelete) { transactions ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"${toDelete.name}\" and their transactions deleted",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreFriendAndTransactions(toDelete, transactions)
+                                        }
+                                    }
+                                }
                                 friendToDelete = null
                             },
                             modifier = Modifier.fillMaxWidth(),

@@ -138,7 +138,16 @@ fun PaymentMethodManagementScreen(
                         val toDelete = methodToDelete!!
                         viewModel.deletePaymentMethod(toDelete) { success, message ->
                             if (success) {
-                                scope.launch { snackbarHostState.showSnackbar("Payment method deleted successfully.") }
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Payment method deleted successfully.",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restorePaymentMethod(toDelete)
+                                    }
+                                }
                                 methodToDelete = null
                             } else if (message == "IN_USE") {
                                 showInUseDialog = true

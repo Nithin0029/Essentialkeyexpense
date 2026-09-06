@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.*
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import java.util.Locale
 import javax.inject.Inject
 
 enum class DateFilter(val label: String) {
@@ -131,7 +132,7 @@ class ReportsViewModel @Inject constructor(
         }
     }
 
-    private fun calculateReports(expenses: List<Expense>, filter: DateFilter): ReportsUiState {
+    private suspend fun calculateReports(expenses: List<Expense>, filter: DateFilter): ReportsUiState {
         if (expenses.isEmpty()) {
             return ReportsUiState(dateFilter = filter, isLoading = false)
         }
@@ -196,7 +197,11 @@ class ReportsViewModel @Inject constructor(
             friendTransactionCount = friendTransactionCount
         )
 
-        val insights = generateInsights(summary, categoryReports, methodReports, friendsSummary)
+        val monthOverMonthInsight = if (filter == DateFilter.THIS_MONTH) {
+            buildMonthOverMonthInsight(categoryReports)
+        } else null
+
+        val insights = generateInsights(summary, categoryReports, methodReports, friendsSummary, monthOverMonthInsight)
 
         return ReportsUiState(
             dateFilter = filter,
@@ -210,13 +215,43 @@ class ReportsViewModel @Inject constructor(
         )
     }
 
+    /**
+     * Compares the current month's top-spending category against the same category last month.
+     * Returns null when there's nothing to compare (e.g. brand new category, no prior spending).
+     */
+    private suspend fun buildMonthOverMonthInsight(categoryReports: List<CategoryReport>): String? {
+        val topCategory = categoryReports.firstOrNull() ?: return null
+
+        val previousMonth = LocalDate.now().minusMonths(1)
+        val previousMonthStr = String.format(Locale.ROOT, "%02d", previousMonth.monthValue)
+        val previousYearStr = previousMonth.year.toString()
+        val previousTotals = repository.getExpensesByCategoryFiltered(previousMonthStr, previousYearStr).first()
+        val previousAmount = previousTotals.find { it.category == topCategory.name }?.totalAmount ?: 0.0
+
+        return when {
+            previousAmount <= 0.0 -> null
+            else -> {
+                val changePercent = ((topCategory.amount - previousAmount) / previousAmount) * 100
+                val rounded = kotlin.math.abs(changePercent).toInt()
+                when {
+                    rounded == 0 -> "Your ${topCategory.name} spending is about the same as last month."
+                    changePercent > 0 -> "You spent $rounded% more on ${topCategory.name} this month than last."
+                    else -> "You spent $rounded% less on ${topCategory.name} this month than last."
+                }
+            }
+        }
+    }
+
     private fun generateInsights(
         summary: SummaryData,
         categories: List<CategoryReport>,
         methods: List<PaymentMethodReport>,
-        friends: FriendsReport
+        friends: FriendsReport,
+        monthOverMonthInsight: String?
     ): List<String> {
         val insights = mutableListOf<String>()
+
+        monthOverMonthInsight?.let { insights.add(it) }
 
         if (categories.isNotEmpty()) {
             insights.add("You spent the most on ${categories.first().name} this period.")

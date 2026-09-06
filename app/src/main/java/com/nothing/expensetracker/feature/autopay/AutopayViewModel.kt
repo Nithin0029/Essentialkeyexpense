@@ -37,4 +37,10 @@ class AutopayViewModel @Inject constructor(
             repository.deleteAutopayRule(rule)
         }
     }
+
+    fun restoreRule(rule: AutopayRule) {
+        viewModelScope.launch {
+            repository.insertAutopayRule(rule)
+        }
+    }
 }

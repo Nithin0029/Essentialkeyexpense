@@ -137,7 +137,16 @@ fun CategoryManagementScreen(
                         val toDelete = categoryToDelete!!
                         viewModel.deleteCategory(toDelete) { success, message ->
                             if (success) {
-                                scope.launch { snackbarHostState.showSnackbar("Category deleted successfully.") }
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Category deleted successfully.",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreCategory(toDelete)
+                                    }
+                                }
                                 categoryToDelete = null
                             } else if (message == "IN_USE") {
                                 showInUseDialog = true

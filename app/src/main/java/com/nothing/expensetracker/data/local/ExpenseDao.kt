@@ -153,6 +153,22 @@ interface ExpenseDao {
     @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
     fun getTotalUpiBankDebits(): Flow<Double?>
 
+    @Query("""
+        SELECT SUM(amount) FROM expenses
+        WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category != 'Transfer'
+          AND strftime('%m', datetime(timestamp / 1000, 'unixepoch')) = :month
+          AND strftime('%Y', datetime(timestamp / 1000, 'unixepoch')) = :year
+    """)
+    suspend fun getTotalDebitForMonth(month: String, year: String): Double?
+
+    @Query("""
+        SELECT SUM(amount) FROM expenses
+        WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category = :category
+          AND strftime('%m', datetime(timestamp / 1000, 'unixepoch')) = :month
+          AND strftime('%Y', datetime(timestamp / 1000, 'unixepoch')) = :year
+    """)
+    suspend fun getTotalDebitForCategoryMonth(category: String, month: String, year: String): Double?
+
     @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Credit' AND paymentMethod = 'Cash'")
     fun getTotalCashCredits(): Flow<Double?>
 

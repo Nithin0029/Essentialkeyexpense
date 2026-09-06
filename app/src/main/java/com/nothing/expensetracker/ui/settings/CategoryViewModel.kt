@@ -82,6 +82,12 @@ class CategoryViewModel @Inject constructor(
         }
     }
 
+    fun restoreCategory(category: Category) {
+        viewModelScope.launch {
+            repository.updateCategory(category.name, category)
+        }
+    }
+
     fun moveTransactionsAndDelete(category: Category, replacementName: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             repository.deleteCategoryAndMoveTransactions(category, replacementName)

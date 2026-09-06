@@ -107,12 +107,16 @@ fun HistoryScreen(
                         viewModel.deleteExpense(expenseToDelete)
                         showDeleteDialog = false
                         showBottomSheet = false
-                        
+
                         scope.launch {
-                            snackbarHostState.showSnackbar(
+                            val result = snackbarHostState.showSnackbar(
                                 message = "Transaction deleted",
-                                actionLabel = "Undo"
+                                actionLabel = "Undo",
+                                duration = SnackbarDuration.Short
                             )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                viewModel.restoreExpense(expenseToDelete)
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))

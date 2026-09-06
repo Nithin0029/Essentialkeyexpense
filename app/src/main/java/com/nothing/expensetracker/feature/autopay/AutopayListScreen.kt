@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.AutopayRule
 import com.nothing.expensetracker.util.formatCurrency
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,8 +33,11 @@ fun AutopayListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var ruleToDelete by remember { mutableStateOf<AutopayRule?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Autopay", fontWeight = FontWeight.Bold) },
@@ -101,8 +105,19 @@ fun AutopayListScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.deleteRule(ruleToDelete!!)
+                        val toDelete = ruleToDelete!!
+                        viewModel.deleteRule(toDelete)
                         ruleToDelete = null
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "Autopay rule deleted",
+                                actionLabel = "Undo",
+                                duration = SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                viewModel.restoreRule(toDelete)
+                            }
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
                 ) {

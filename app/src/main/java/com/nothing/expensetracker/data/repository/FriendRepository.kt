@@ -1,5 +1,6 @@
 package com.nothing.expensetracker.data.repository
 
+import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.ExpenseDao
 import com.nothing.expensetracker.data.local.Friend
 import com.nothing.expensetracker.data.local.FriendDao
@@ -48,29 +49,47 @@ class FriendRepository @Inject constructor(
         friendDao.updateFriend(updatedFriend)
     }
 
-    suspend fun deleteFriendOnly(friend: Friend) {
+    /** Returns the friend's transactions as they were before their friendId link was cleared, for undo. */
+    suspend fun deleteFriendOnly(friend: Friend): List<Expense> {
+        val transactions = expenseDao.getTransactionsByFriend(friend.name).first()
+
         // Soft delete locally first
         val deletedFriend = friend.copy(syncStatus = "Deleted")
-        
+
         // 1. Remove friend link from all transactions (Keep the records)
         expenseDao.nullifyFriendId(deletedFriend.name)
-        
+
         // 2. Mark friend for deletion to trigger sync
-        friendDao.updateFriend(deletedFriend) 
+        friendDao.updateFriend(deletedFriend)
+
+        return transactions
     }
 
-    suspend fun deleteFriendAndTransactions(friend: Friend) {
+    suspend fun restoreFriendOnly(friend: Friend, transactions: List<Expense>) {
+        friendDao.updateFriend(friend)
+        transactions.forEach { expenseDao.updateExpense(it) }
+    }
+
+    /** Returns the friend's transactions as they were before deletion, for undo. */
+    suspend fun deleteFriendAndTransactions(friend: Friend): List<Expense> {
         val deletedFriend = friend.copy(syncStatus = "Deleted")
-        
+
         // 1. Fetch and mark all associated transactions for deletion
         val transactions = expenseDao.getTransactionsByFriend(friend.name).first()
         transactions.forEach { expense ->
             val deletedExpense = expense.copy(syncStatus = "Deleted")
             expenseDao.updateExpense(deletedExpense)
         }
-        
+
         // 2. Mark friend for deletion
         friendDao.updateFriend(deletedFriend)
+
+        return transactions
+    }
+
+    suspend fun restoreFriendAndTransactions(friend: Friend, transactions: List<Expense>) {
+        friendDao.updateFriend(friend)
+        transactions.forEach { expenseDao.updateExpense(it) }
     }
 
     suspend fun deleteFriendPermanently(friend: Friend) {
