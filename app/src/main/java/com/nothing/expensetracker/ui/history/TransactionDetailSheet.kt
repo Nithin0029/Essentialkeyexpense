@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -26,8 +27,8 @@ fun TransactionDetailSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1A1A1A),
-        contentColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
     ) {
         Column(
@@ -61,10 +62,10 @@ fun TransactionDetailSheet(
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "₹${expense.amount}",
+                    text = formatCurrency(expense.amount),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = if (expense.type == "Credit") Color(0xFF4CAF50) else Color.White
+                    color = if (expense.type == "Credit") Color(0xFF4CAF50) else MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -126,6 +127,6 @@ private fun DetailRow(label: String, value: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = Color.White)
+        Text(text = value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
     }
 }

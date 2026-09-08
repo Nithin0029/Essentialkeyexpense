@@ -12,6 +12,7 @@ data class Budget(
     val amount: Double,
     val month: Int, // 1-12
     val year: Int,
+    val lastAlertThreshold: Int = 0, // highest of 0/80/100 already notified for this budget row
     val syncStatus: String = "Synced", // "Pending", "Syncing", "Synced", "Failed", "Deleted"
     val lastSyncAttempt: Long = 0,
     val syncError: String? = null

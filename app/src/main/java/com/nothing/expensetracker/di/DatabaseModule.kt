@@ -9,6 +9,8 @@ import com.nothing.expensetracker.data.local.ExpenseDao
 import com.nothing.expensetracker.data.local.FriendDao
 import com.nothing.expensetracker.data.local.CategoryDao
 import com.nothing.expensetracker.data.local.BudgetDao
+import com.nothing.expensetracker.data.local.PaymentMethodDao
+import com.nothing.expensetracker.data.local.AutopayDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -46,6 +48,54 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_11_12 = object : Migration(11, 12) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS payment_methods (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    isSystem INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
+    private val MIGRATION_12_13 = object : Migration(12, 13) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS autopay_rules (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    amount REAL NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    category TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    paymentMethod TEXT NOT NULL,
+                    friendId TEXT,
+                    dayOfMonth INTEGER NOT NULL,
+                    isActive INTEGER NOT NULL DEFAULT 1,
+                    lastRunMonth TEXT,
+                    createdAt INTEGER NOT NULL DEFAULT 0
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
+    private val MIGRATION_13_14 = object : Migration(13, 14) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE budgets ADD COLUMN lastAlertThreshold INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
+    private val MIGRATION_14_15 = object : Migration(14, 15) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE categories ADD COLUMN parentId INTEGER")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -54,7 +104,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "essential_expense_db"
         )
-        .addMigrations(MIGRATION_10_11)
+        .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
         .fallbackToDestructiveMigration()
         .build()
     }
@@ -77,5 +127,15 @@ object DatabaseModule {
     @Provides
     fun provideBudgetDao(database: AppDatabase): BudgetDao {
         return database.budgetDao()
+    }
+
+    @Provides
+    fun providePaymentMethodDao(database: AppDatabase): PaymentMethodDao {
+        return database.paymentMethodDao()
+    }
+
+    @Provides
+    fun provideAutopayDao(database: AppDatabase): AutopayDao {
+        return database.autopayDao()
     }
 }

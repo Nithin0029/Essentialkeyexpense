@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import com.nothing.expensetracker.util.formatCurrency
 import androidx.compose.ui.unit.dp
 import com.nothing.expensetracker.data.local.CategoryExpense
 
@@ -172,7 +173,7 @@ fun CategoryDonutChart(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text("Total", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
                             Text(
-                                "₹${totalSpent.toInt()}",
+                                formatCurrency(totalSpent),
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium
                             )

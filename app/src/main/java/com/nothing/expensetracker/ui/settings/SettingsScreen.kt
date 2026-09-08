@@ -20,7 +20,10 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,10 +35,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.nothing.expensetracker.auth.AuthState
+import com.nothing.expensetracker.auth.BiometricAuthHelper
+import com.nothing.expensetracker.data.local.ThemeMode
+import com.nothing.expensetracker.util.formatCurrency
 import java.util.*
 
 enum class MpinVerifyReason {
@@ -49,6 +56,8 @@ fun SettingsScreen(
     onNavigateToCreateMpin: () -> Unit,
     onNavigateToChangeMpin: () -> Unit,
     onNavigateToCategoryManagement: () -> Unit,
+    onNavigateToPaymentMethodManagement: () -> Unit,
+    onNavigateToAutopay: () -> Unit,
     onNavigateToOverallBudget: () -> Unit,
     onNavigateToCategoryBudgets: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
@@ -56,6 +65,7 @@ fun SettingsScreen(
 ) {
     val openingBankBalance by viewModel.openingBankBalance.collectAsState()
     val openingCashBalance by viewModel.openingCashBalance.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
     val authState by viewModel.authState.collectAsState()
     val spreadsheetState by viewModel.spreadsheetState.collectAsState()
     
@@ -66,6 +76,9 @@ fun SettingsScreen(
     
     val mpinEnabled = mpinViewModel.isMpinSet()
     val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val biometricAvailable = activity != null && BiometricAuthHelper.isAvailable(activity)
+    var biometricEnabled by remember { mutableStateOf(mpinViewModel.isBiometricEnabled()) }
 
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
@@ -76,13 +89,13 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        containerColor = Color.Black,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             Text(
                 text = "Settings",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(16.dp),
             )
         }
@@ -96,6 +109,11 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             Spacer(modifier = Modifier.height(4.dp))
+            AppearanceSettingsCard(
+                themeMode = themeMode,
+                onThemeModeChange = { viewModel.setThemeMode(it) }
+            )
+
             FinancialSettingsCard(
                 openingBankBalance = openingBankBalance,
                 openingCashBalance = openingCashBalance,
@@ -124,6 +142,12 @@ fun SettingsScreen(
                 onDisableMpin = {
                     mpinVerifyReason = MpinVerifyReason.DISABLE_MPIN
                     showMpinVerifyDialog = true
+                },
+                biometricAvailable = biometricAvailable,
+                biometricEnabled = biometricEnabled,
+                onBiometricToggle = { enabled ->
+                    mpinViewModel.setBiometricEnabled(enabled)
+                    biometricEnabled = enabled
                 }
             )
 
@@ -161,6 +185,14 @@ fun SettingsScreen(
 
             CategoryManagementCard(
                 onClick = onNavigateToCategoryManagement
+            )
+
+            PaymentMethodManagementCard(
+                onClick = onNavigateToPaymentMethodManagement
+            )
+
+            AutopayManagementCard(
+                onClick = onNavigateToAutopay
             )
 
             BudgetManagementSection(
@@ -209,7 +241,10 @@ fun SettingsScreen(
                 when (mpinVerifyReason) {
                     MpinVerifyReason.EDIT_OPENING_BANK_BALANCE -> showOpeningBankBalanceDialog = true
                     MpinVerifyReason.EDIT_OPENING_CASH_BALANCE -> showOpeningCashBalanceDialog = true
-                    MpinVerifyReason.DISABLE_MPIN -> mpinViewModel.removeMpin() 
+                    MpinVerifyReason.DISABLE_MPIN -> {
+                        mpinViewModel.removeMpin()
+                        biometricEnabled = false
+                    }
                     null -> {}
                 }
                 mpinVerifyReason = null
@@ -219,18 +254,66 @@ fun SettingsScreen(
 }
 
 @Composable
-fun SecuritySettingsCard(
-    mpinEnabled: Boolean,
-    onEnableMpin: () -> Unit,
-    onChangeMpin: () -> Unit,
-    onDisableMpin: () -> Unit
+fun AppearanceSettingsCard(
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Appearance",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    ThemeMode.SYSTEM to "System",
+                    ThemeMode.LIGHT to "Light",
+                    ThemeMode.DARK to "Dark"
+                ).forEach { (mode, label) ->
+                    FilterChip(
+                        selected = mode == themeMode,
+                        onClick = { onThemeModeChange(mode) },
+                        label = { Text(label) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SecuritySettingsCard(
+    mpinEnabled: Boolean,
+    onEnableMpin: () -> Unit,
+    onChangeMpin: () -> Unit,
+    onDisableMpin: () -> Unit,
+    biometricAvailable: Boolean = false,
+    biometricEnabled: Boolean = false,
+    onBiometricToggle: (Boolean) -> Unit = {}
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -268,9 +351,35 @@ fun SecuritySettingsCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Change MPIN", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                    Text(text = "Change MPIN", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                     IconButton(onClick = onChangeMpin) {
                         Icon(Icons.Default.Edit, contentDescription = "Change", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                    }
+                }
+
+                if (biometricAvailable) {
+                    HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Fingerprint,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = "Biometric Unlock", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                        Switch(
+                            checked = biometricEnabled,
+                            onCheckedChange = onBiometricToggle,
+                            colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary)
+                        )
                     }
                 }
             }
@@ -297,7 +406,7 @@ fun MpinVerifyDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Verify MPIN", color = Color.White) },
+        title = { Text("Verify MPIN", color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = "Enter your 4-digit code to continue", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
@@ -335,7 +444,7 @@ fun MpinVerifyDialog(
                                     modifier = Modifier.weight(1f),
                                     shape = CircleShape
                                 ) {
-                                    Text(text = key, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                                    Text(text = key, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                                 }
                             }
                         }
@@ -349,7 +458,7 @@ fun MpinVerifyDialog(
                 Text("Cancel", color = Color.Gray)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }
@@ -372,8 +481,8 @@ fun GoogleSyncSettingsCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -396,7 +505,7 @@ fun GoogleSyncSettingsCard(
                     ) {
                         Column {
                             Text(text = "Status", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-                            Text(text = "Not Connected", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                            Text(text = "Not Connected", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                         }
                         Icon(Icons.Default.CloudOff, contentDescription = null, tint = Color.Gray)
                     }
@@ -435,7 +544,7 @@ fun GoogleSyncSettingsCard(
                                 Text(
                                     text = authState.displayName?.take(1) ?: "?",
                                     style = MaterialTheme.typography.titleLarge,
-                                    color = Color.White
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -445,7 +554,7 @@ fun GoogleSyncSettingsCard(
                                 text = authState.displayName ?: "Google User",
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = authState.email ?: "",
@@ -506,7 +615,7 @@ fun GoogleSyncSettingsCard(
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text(text = "Open Spreadsheet", style = MaterialTheme.typography.bodyLarge, color = Color.White)
+                                        Text(text = "Open Spreadsheet", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                                         Text(text = "Open your synced Google Sheets spreadsheet", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                                     }
                                 }
@@ -547,7 +656,7 @@ fun GoogleSyncSettingsCard(
                                 enabled = (unsyncedCount > 0 || failedCount > 0) && !isSyncing
                             ) {
                                 if (isSyncing) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Syncing...")
                                 } else {
@@ -592,8 +701,8 @@ fun FinancialSettingsCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -609,7 +718,7 @@ fun FinancialSettingsCard(
 
             SettingRow(
                 label = "Opening Bank Balance",
-                value = "₹%,.0f".format(Locale.getDefault(), openingBankBalance),
+                value = formatCurrency(openingBankBalance),
                 action = {
                     IconButton(onClick = onEditBank) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -621,7 +730,7 @@ fun FinancialSettingsCard(
 
             SettingRow(
                 label = "Opening Cash Balance",
-                value = "₹%,.0f".format(Locale.getDefault(), openingCashBalance),
+                value = formatCurrency(openingCashBalance),
                 action = {
                     IconButton(onClick = onEditCash) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -688,7 +797,7 @@ fun SettingRow(
     ) {
         Column {
             Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-            Text(text = value, style = MaterialTheme.typography.bodyLarge, color = Color.White, fontWeight = FontWeight.Medium)
+            Text(text = value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
         }
         action?.invoke()
     }
@@ -705,7 +814,7 @@ fun OpeningBalanceDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             OutlinedTextField(
                 value = balanceText,
@@ -715,8 +824,8 @@ fun OpeningBalanceDialog(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
@@ -737,7 +846,7 @@ fun OpeningBalanceDialog(
                 Text("Cancel", color = Color.Gray)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }
@@ -748,8 +857,8 @@ fun AboutCard() {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -765,7 +874,7 @@ fun AboutCard() {
             Text(
                 text = "Essential Expense Tracker",
                 style = MaterialTheme.typography.bodyLarge,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = "Version 3.5.0",
@@ -776,7 +885,7 @@ fun AboutCard() {
             Text(
                 text = "Built with Nothing OS design language. Secure, private, and fully synchronized with your Google Account.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.LightGray
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -802,8 +911,8 @@ fun BudgetManagementSection(
                 .clickable(onClick = onOverallBudgetClick),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A1A),
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) {
             Row(
@@ -824,7 +933,7 @@ fun BudgetManagementSection(
                             text = "Overall Budget",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "Manage your monthly spending limit",
@@ -842,8 +951,8 @@ fun BudgetManagementSection(
                 .clickable(onClick = onCategoryBudgetsClick),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A1A),
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) {
             Row(
@@ -864,7 +973,7 @@ fun BudgetManagementSection(
                             text = "Category Budgets",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "Set limits for specific categories",
@@ -888,8 +997,8 @@ fun CategoryManagementCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Row(
@@ -910,10 +1019,100 @@ fun CategoryManagementCard(
                         text = "Category Management",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "Add, edit, or remove expense categories",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaymentMethodManagementCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Payments,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Payment Methods",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Add, edit, or remove payment methods",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AutopayManagementCard(
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Repeat,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "Autopay",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Set up recurring monthly transactions like rent or SIPs",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )

@@ -1,5 +1,5 @@
 [versions]
-agp = "9.3.1"
+agp = "9.3.2"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -21,6 +21,7 @@ hiltWork = "1.2.0"
 androidxHiltCompiler = "1.2.0"
 coil = "2.7.0"
 securityCrypto = "1.1.0-alpha06"
+biometric = "1.1.0"
 retrofit = "2.11.0"
 okhttp = "4.12.0"
 gson = "2.11.0"
@@ -57,6 +58,7 @@ google-api-client-android = { group = "com.google.api-client", name = "google-ap
 google-api-services-sheets = { group = "com.google.apis", name = "google-api-services-sheets", version.ref = "googleSheets" }
 google-api-services-drive = { group = "com.google.apis", name = "google-api-services-drive", version.ref = "googleDrive" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }

@@ -19,6 +19,11 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) AND syncStatus != 'Deleted' LIMIT 1")
     suspend fun getCategoryByNameCaseInsensitive(name: String): Category?
 
+    /** Unlike [getCategoryByNameCaseInsensitive], also matches soft-deleted rows so a default-category
+     *  backfill never resurrects a category the user deliberately deleted. */
+    @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getCategoryByNameAnyStatus(name: String): Category?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertCategory(category: Category): Long
 
@@ -30,6 +35,9 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories")
     suspend fun countCategories(): Int
+
+    @Query("SELECT COUNT(*) FROM categories WHERE parentId = :parentId AND syncStatus != 'Deleted'")
+    suspend fun countSubcategories(parentId: Long): Int
 
     @Query("SELECT * FROM categories WHERE syncStatus != 'Synced'")
     suspend fun getUnsyncedCategories(): List<Category>

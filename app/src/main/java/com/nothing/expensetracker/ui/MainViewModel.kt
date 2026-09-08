@@ -8,6 +8,7 @@ import com.nothing.expensetracker.data.local.CategoryExpense
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import com.nothing.expensetracker.data.repository.FriendRepository
+import com.nothing.expensetracker.ui.history.TransactionConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -47,7 +48,8 @@ class MainViewModel @Inject constructor(
     private val repository: ExpenseRepository,
     private val friendRepository: FriendRepository,
     private val appPrefs: AppPrefs,
-    private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler
+    private val syncScheduler: com.nothing.expensetracker.sync.SyncScheduler,
+    private val autopayScheduler: com.nothing.expensetracker.feature.autopay.AutopayScheduler
 ) : ViewModel() {
 
     private val _selectedMonth = MutableStateFlow(SimpleDateFormat("MM", Locale.getDefault()).format(Date()))
@@ -61,10 +63,17 @@ class MainViewModel @Inject constructor(
             try {
                 Log.d("MainViewModel", "Startup: Seeding default categories...")
                 repository.seedDefaultCategories()
-                
+                repository.cleanupLegacyCategories()
+                repository.seedDefaultPaymentMethods()
+
                 Log.d("MainViewModel", "Startup: Scheduling background sync...")
                 syncScheduler.scheduleSync()
-                
+
+                Log.d("MainViewModel", "Startup: Scheduling autopay checks...")
+                autopayScheduler.scheduleDailyCheck()
+                autopayScheduler.runNow()
+
+
                 // Diagnostic log for friends (wrapped in secondary try-catch)
                 launch {
                     try {
@@ -126,23 +135,29 @@ class MainViewModel @Inject constructor(
             allExpenses.forEach { expense ->
                 val amount = expense.amount
                 val isDebit = expense.type == "Debit"
-                
+                val isTransfer = TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
+                val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
+                val isThisMonth = !date.isBefore(startOfMonth) && !date.isAfter(now)
+
                 if (isDebit) {
-                    expenseTotal += amount
-                    categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
-                    
-                    val date = Instant.ofEpochMilli(expense.timestamp).atZone(zoneId).toLocalDate()
-                    if (date.isEqual(now)) {
-                        todaySpending += amount
-                    }
-                    if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
-                        weekSpending += amount
-                    }
-                    if (!date.isBefore(startOfMonth) && !date.isAfter(now)) {
-                        monthSpending += amount
+                    if (!isTransfer) {
+                        // Dashboard's expense total & category breakdown reflect the current month only.
+                        if (isThisMonth) {
+                            expenseTotal += amount
+                            categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + amount
+                            monthSpending += amount
+                        }
+                        if (date.isEqual(now)) {
+                            todaySpending += amount
+                        }
+                        if (!date.isBefore(startOfWeek) && !date.isAfter(now)) {
+                            weekSpending += amount
+                        }
                     }
                 } else {
-                    income += amount
+                    if (!isTransfer && isThisMonth) {
+                        income += amount
+                    }
                 }
             }
 
@@ -156,8 +171,11 @@ class MainViewModel @Inject constructor(
                 .sortedByDescending { it.totalAmount }
                 .take(5)
 
-            // 8. Recent Transactions
-            val recentTransactions = allExpenses.take(5)
+            // 8. Recent Transactions (Transfers excluded — they're a self-account movement, not
+            // an expense/income event worth surfacing on the dashboard; still visible in History)
+            val recentTransactions = allExpenses
+                .filterNot { TransactionConstants.isNonSpendingCategory(it.type, it.category) }
+                .take(5)
 
             // 9. Global Sync Status
             val isAllSynced = allExpenses.all { it.syncStatus == "Synced" }

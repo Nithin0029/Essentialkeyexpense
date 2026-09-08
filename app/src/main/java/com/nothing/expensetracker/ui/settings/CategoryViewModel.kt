@@ -15,7 +15,10 @@ import javax.inject.Inject
 data class CategoryUiState(
     val categories: List<Category> = emptyList(),
     val isLoading: Boolean = true
-)
+) {
+    val topLevelCategories: List<Category> get() = categories.filter { it.parentId == null }
+    fun subcategoriesOf(parentId: Long): List<Category> = categories.filter { it.parentId == parentId }
+}
 
 @HiltViewModel
 class CategoryViewModel @Inject constructor(
@@ -26,7 +29,7 @@ class CategoryViewModel @Inject constructor(
         .map { CategoryUiState(it, false) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), CategoryUiState())
 
-    fun addCategory(name: String, onResult: (Boolean, String?) -> Unit) {
+    fun addCategory(name: String, parentId: Long? = null, onResult: (Boolean, String?) -> Unit) {
         val trimmedName = name.trim()
         if (trimmedName.isBlank()) {
             onResult(false, "Name cannot be empty")
@@ -37,7 +40,7 @@ class CategoryViewModel @Inject constructor(
             if (existing != null) {
                 onResult(false, "Category already exists.")
             } else {
-                repository.insertCategory(Category(name = trimmedName))
+                repository.insertCategory(Category(name = trimmedName, parentId = parentId))
                 onResult(true, null)
             }
         }
@@ -65,10 +68,15 @@ class CategoryViewModel @Inject constructor(
             onResult(false, "The 'Friends' category cannot be deleted as it is required by the app.")
             return
         }
-        
+
         viewModelScope.launch {
             if (repository.getCategoryCount() <= 1) {
                 onResult(false, "At least one category must exist.")
+                return@launch
+            }
+
+            if (repository.countSubcategories(category.id) > 0) {
+                onResult(false, "Delete or move its subcategories first.")
                 return@launch
             }
 
@@ -79,6 +87,12 @@ class CategoryViewModel @Inject constructor(
             } else {
                 onResult(false, "IN_USE") // Special signal for the UI to show the complex dialog
             }
+        }
+    }
+
+    fun restoreCategory(category: Category) {
+        viewModelScope.launch {
+            repository.updateCategory(category.name, category)
         }
     }
 

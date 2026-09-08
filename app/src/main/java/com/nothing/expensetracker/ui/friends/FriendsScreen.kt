@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Friend
 import com.nothing.expensetracker.ui.friends.FriendWithBalance
+import com.nothing.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,8 +50,8 @@ fun FriendsScreen(
             TopAppBar(
                 title = { Text("Friends", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -65,7 +66,7 @@ fun FriendsScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Friend")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -84,8 +85,8 @@ fun FriendsScreen(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
                 singleLine = true
             )
@@ -154,12 +155,24 @@ fun FriendsScreen(
             // Simple confirmation for friends with NO history
             AlertDialog(
                 onDismissRequest = { friendToDelete = null },
-                title = { Text("Delete Friend", color = Color.White) },
+                title = { Text("Delete Friend", color = MaterialTheme.colorScheme.onSurface) },
                 text = { Text("Are you sure you want to delete \"$friendName\"?", color = Color.Gray) },
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.deleteFriendOnly(friendToDelete!!)
+                            val toDelete = friendToDelete!!
+                            viewModel.deleteFriendOnly(toDelete) { transactions ->
+                                scope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "\"${toDelete.name}\" deleted",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreFriendOnly(toDelete, transactions)
+                                    }
+                                }
+                            }
                             friendToDelete = null
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
@@ -172,18 +185,18 @@ fun FriendsScreen(
                         Text("Cancel", color = Color.Gray)
                     }
                 },
-                containerColor = Color(0xFF1E1E1E),
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(20.dp)
             )
         } else {
             // Complex Choice Dialog for friends WITH history
             AlertDialog(
                 onDismissRequest = { friendToDelete = null },
-                title = { Text("Friend is used in transactions", color = Color.White) },
+                title = { Text("Friend is used in transactions", color = MaterialTheme.colorScheme.onSurface) },
                 text = {
                     Text(
                         text = "This friend is linked to existing transactions. Choose what you want to do.",
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },
@@ -194,7 +207,19 @@ fun FriendsScreen(
                     ) {
                         Button(
                             onClick = {
-                                viewModel.deleteFriendOnly(friendToDelete!!)
+                                val toDelete = friendToDelete!!
+                                viewModel.deleteFriendOnly(toDelete) { transactions ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"${toDelete.name}\" deleted",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreFriendOnly(toDelete, transactions)
+                                        }
+                                    }
+                                }
                                 friendToDelete = null
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -204,7 +229,19 @@ fun FriendsScreen(
                         }
                         Button(
                             onClick = {
-                                viewModel.deleteFriendAndTransactions(friendToDelete!!)
+                                val toDelete = friendToDelete!!
+                                viewModel.deleteFriendAndTransactions(toDelete) { transactions ->
+                                    scope.launch {
+                                        val result = snackbarHostState.showSnackbar(
+                                            message = "\"${toDelete.name}\" and their transactions deleted",
+                                            actionLabel = "Undo",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                        if (result == SnackbarResult.ActionPerformed) {
+                                            viewModel.restoreFriendAndTransactions(toDelete, transactions)
+                                        }
+                                    }
+                                }
                                 friendToDelete = null
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -221,7 +258,7 @@ fun FriendsScreen(
                         }
                     }
                 },
-                containerColor = Color(0xFF1E1E1E),
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(20.dp)
             )
         }
@@ -243,7 +280,7 @@ fun FriendItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -272,7 +309,7 @@ fun FriendItem(
                     Text(
                         text = friend.name,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
                     val statusText = when {
@@ -281,9 +318,9 @@ fun FriendItem(
                         else -> "Settled"
                     }
                     val amountText = when {
-                        balance.outstandingBalance > 0 -> "+ ₹${balance.outstandingBalance.toInt()}"
-                        balance.outstandingBalance < 0 -> "- ₹${(-balance.outstandingBalance).toInt()}"
-                        else -> "₹0"
+                        balance.outstandingBalance > 0 -> "+ ${formatCurrency(balance.outstandingBalance)}"
+                        balance.outstandingBalance < 0 -> "- ${formatCurrency(-balance.outstandingBalance)}"
+                        else -> formatCurrency(0.0)
                     }
                     val balanceColor = when {
                         balance.outstandingBalance > 0 -> Color(0xFF4CAF50) // Green
@@ -347,7 +384,7 @@ fun EmptyFriendsState(onAddClick: () -> Unit) {
         Text(
             text = "No Friends Added",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(

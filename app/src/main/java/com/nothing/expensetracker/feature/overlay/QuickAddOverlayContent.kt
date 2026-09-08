@@ -22,6 +22,7 @@ fun QuickAddOverlayContent(
     initialColor: String,
     debitCategories: List<String>,
     friends: List<String>,
+    paymentMethods: List<String>,
     onSaveExpense: (
         amount: Double,
         description: String,
@@ -37,10 +38,19 @@ fun QuickAddOverlayContent(
     var amountText by remember { mutableStateOf("") }
     var descriptionText by remember { mutableStateOf("") }
     var transactionType by remember { mutableStateOf("Debit") }
-    var selectedCategory by remember { mutableStateOf(if (debitCategories.isNotEmpty()) debitCategories.first() else "Other") }
+    // Starts empty since debitCategories is usually still empty on first composition (it arrives
+    // from a Flow a moment later) — resolving eagerly here would lock this in to the "Other"
+    // fallback and never update once the real list loads.
+    var selectedCategory by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("") }
     var friendIdText by remember { mutableStateOf("") }
+
+    LaunchedEffect(debitCategories) {
+        if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
+            selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(transactionType, debitCategories)
+        }
+    }
 
     val currentCategories = if (transactionType == "Credit") {
         com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
@@ -50,7 +60,7 @@ fun QuickAddOverlayContent(
 
     val isFriendCategory = com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(transactionType, selectedCategory)
     
-    val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(transactionType, selectedCategory)
+    val availableMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(transactionType, selectedCategory, paymentMethods)
 
     var categoryExpanded by remember { mutableStateOf(false) }
     var paymentExpanded by remember { mutableStateOf(false) }
@@ -88,9 +98,10 @@ fun QuickAddOverlayContent(
                 // Amount
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it },
+                    onValueChange = { if (com.nothing.expensetracker.ui.history.TransactionConstants.isValidAmountInput(it)) amountText = it },
                     label = { Text("Amount (₹)", color = Color.Gray) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = { Text("0.00", color = Color.Gray) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
@@ -258,7 +269,7 @@ fun QuickAddOverlayContent(
                         expanded = paymentExpanded,
                         onDismissRequest = { paymentExpanded = false }
                     ) {
-                        paymentMethods.forEach { method ->
+                        availableMethods.forEach { method ->
                             DropdownMenuItem(
                                 text = { Text(method) },
                                 onClick = {

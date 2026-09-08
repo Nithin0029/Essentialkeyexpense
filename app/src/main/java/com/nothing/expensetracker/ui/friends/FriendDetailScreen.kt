@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.FriendBalance
+import com.nothing.expensetracker.ui.history.TransactionConstants
+import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,6 +31,7 @@ fun FriendDetailScreen(
     viewModel: FriendDetailViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
     var showEditDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -42,17 +45,17 @@ fun FriendDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { showEditDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Friend", tint = Color.White)
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Friend", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -90,6 +93,7 @@ fun FriendDetailScreen(
                         SettleUpDialog(
                             friendName = uiState.friendName,
                             currentBalance = uiState.balance?.outstandingBalance ?: 0.0,
+                            paymentMethods = paymentMethods,
                             onDismiss = { showSettleDialog = false },
                             onConfirm = { amount, method, notes ->
                                 viewModel.settleUp(amount, method, notes)
@@ -137,7 +141,7 @@ fun FriendSummaryHeader(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -153,11 +157,11 @@ fun FriendSummaryHeader(
             val balanceColor = when {
                 outstanding > 0 -> Color(0xFF4CAF50)
                 outstanding < 0 -> Color(0xFFF44336)
-                else -> Color.White
+                else -> MaterialTheme.colorScheme.onSurface
             }
             
             Text(
-                text = (if (outstanding >= 0) "₹" else "-₹") + "%,.0f".format(Locale.getDefault(), Math.abs(outstanding)),
+                text = (if (outstanding >= 0) "" else "-") + formatCurrency(Math.abs(outstanding)),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = balanceColor,
@@ -187,8 +191,8 @@ fun FriendSummaryHeader(
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StatItem(label = "Total Debit", value = balance?.totalDebit ?: 0.0, color = Color.White)
-                StatItem(label = "Total Credit", value = balance?.totalCredit ?: 0.0, color = Color.White)
+                StatItem(label = "Total Debit", value = balance?.totalDebit ?: 0.0, color = MaterialTheme.colorScheme.onSurface)
+                StatItem(label = "Total Credit", value = balance?.totalCredit ?: 0.0, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -199,7 +203,7 @@ private fun StatItem(label: String, value: Double, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         Text(
-            text = "₹%,.0f".format(Locale.getDefault(), value),
+            text = formatCurrency(value),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = color
@@ -216,7 +220,7 @@ fun FriendTransactionItem(transaction: Expense) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -230,7 +234,7 @@ fun FriendTransactionItem(transaction: Expense) {
                     text = if (isDebit) "Money Owed" else "Money Received",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = dateFormat.format(Date(transaction.timestamp)),
@@ -253,14 +257,14 @@ fun FriendTransactionItem(transaction: Expense) {
                     Text(
                         text = transaction.paymentMethod,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
             }
             
             Text(
-                text = (if (isDebit) "+" else "-") + "₹${transaction.amount.toInt()}",
+                text = (if (isDebit) "+" else "-") + formatCurrency(transaction.amount),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = color
@@ -274,36 +278,41 @@ fun FriendTransactionItem(transaction: Expense) {
 fun SettleUpDialog(
     friendName: String,
     currentBalance: Double,
+    paymentMethods: List<String>,
     onDismiss: () -> Unit,
     onConfirm: (Double, String, String) -> Unit
 ) {
     var amount by remember { mutableStateOf(Math.abs(currentBalance).toString()) }
     var selectedMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("Settlement") }
-    
+
     val isCredit = currentBalance > 0
-    val methods = if (isCredit) listOf("Bank", "UPI", "Cash", "RAS") else listOf("UPI", "Cash", "Bank")
+    val methods = TransactionConstants.getAvailableMethods(
+        type = if (isCredit) "Credit" else "Debit",
+        category = if (isCredit) "Friend" else "Friends",
+        availableMethods = paymentMethods
+    )
     var methodExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Settle Up with $friendName", color = Color.White) },
+        title = { Text("Settle Up with $friendName", color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    text = "Current Balance: ₹%,.0f".format(Locale.getDefault(), currentBalance),
+                    text = "Current Balance: ${formatCurrency(currentBalance)}",
                     color = Color.Gray,
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
                 OutlinedTextField(
                     value = amount,
-                    onValueChange = { if (it.isEmpty() || it.toDoubleOrNull() != null) amount = it },
+                    onValueChange = { if (com.nothing.expensetracker.ui.history.TransactionConstants.isValidAmountInput(it)) amount = it },
                     label = { Text("Settlement Amount") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
 
@@ -319,8 +328,8 @@ fun SettleUpDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     ExposedDropdownMenu(
@@ -345,8 +354,8 @@ fun SettleUpDialog(
                     label = { Text("Notes (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
             }
@@ -368,7 +377,7 @@ fun SettleUpDialog(
                 Text("Cancel", color = Color.Gray)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

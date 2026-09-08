@@ -9,7 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-import java.util.Locale
+import com.nothing.expensetracker.util.formatCurrency
 
 @Composable
 fun SummaryCards(today: Double, week: Double, month: Double) {
@@ -20,19 +20,19 @@ fun SummaryCards(today: Double, week: Double, month: Double) {
         SummaryCard(
             modifier = Modifier.weight(1f),
             title = "Today",
-            amount = "₹%,.0f".format(Locale.getDefault(), today),
+            amount = formatCurrency(today),
             caption = "Today's Spending"
         )
         SummaryCard(
             modifier = Modifier.weight(1f),
             title = "Week",
-            amount = "₹%,.0f".format(Locale.getDefault(), week),
+            amount = formatCurrency(week),
             caption = "This Week"
         )
         SummaryCard(
             modifier = Modifier.weight(1f),
             title = "Month",
-            amount = "₹%,.0f".format(Locale.getDefault(), month),
+            amount = formatCurrency(month),
             caption = "This Month"
         )
     }
@@ -49,8 +49,8 @@ private fun SummaryCard(
         modifier = modifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -66,7 +66,7 @@ private fun SummaryCard(
                 text = amount,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Text(
                 text = caption,

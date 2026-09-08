@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.nothing.expensetracker.util.formatCurrency
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.ui.settings.BudgetViewModel
@@ -76,12 +77,12 @@ fun ReportsScreen(
             TopAppBar(
                 title = { Text("Reports & Analytics", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -110,41 +111,54 @@ fun ReportsScreen(
             } else if (uiState.summary.transactionCount == 0) {
                 EmptyReportsState()
             } else {
-                // 2. Summary Cards
+                // 2. Summary Cards — the headline numbers first.
                 SummaryCardsRow(summary = uiState.summary)
 
-                // 3. Expense vs Income
+                // 3. Insights — the "so what" of this period, surfaced right after the numbers
+                // instead of buried at the bottom of a long scroll.
+                if (uiState.insights.isNotEmpty()) {
+                    ReportCard(title = "Insights") {
+                        InsightsSection(insights = uiState.insights)
+                    }
+                }
+
+                // 4. Expense by Category — the single most useful drill-down, promoted above the
+                // supporting charts. Donut + full ranked list combined (previously two separate
+                // cards duplicated the same ranking as a legend and as a list).
+                if (uiState.categoryReports.isNotEmpty()) {
+                    ReportCard(title = "Expense by Category") {
+                        CategoryBreakdownSection(reports = uiState.categoryReports)
+                    }
+                }
+
+                // 5. Expense vs Income
                 ReportCard(title = "Expense vs Income") {
                     ComparisonBarChart(income = uiState.summary.income, expense = uiState.summary.expense)
                 }
 
-                // 4. Expense by Category
-                ReportCard(title = "Expense by Category") {
-                    CategoryPieChart(reports = uiState.categoryReports)
+                // 6. Payment Method Analysis
+                if (uiState.paymentMethodReports.isNotEmpty()) {
+                    ReportCard(title = "Payment Method Analysis") {
+                        PaymentMethodAnalysis(reports = uiState.paymentMethodReports)
+                    }
                 }
 
-                // 5. Payment Method Analysis
-                ReportCard(title = "Payment Method Analysis") {
-                    PaymentMethodAnalysis(reports = uiState.paymentMethodReports)
+                // 6b. Transfers — excluded from income/expense above since they're just money
+                // moving between your own accounts, not real spending. Grouped near payment
+                // methods since both are about where money moved.
+                if (uiState.transferCount > 0) {
+                    ReportCard(title = "Transfers") {
+                        TransferSummarySection(total = uiState.transferTotal, count = uiState.transferCount)
+                    }
                 }
 
-                // 6. Friends Summary
+                // 7. Friends Summary
                 ReportCard(title = "Friends Summary") {
                     FriendsSummarySection(summary = uiState.friendsSummary)
                 }
 
-                // 7. Top Spending Categories
-                ReportCard(title = "Top Spending Categories") {
-                    TopCategoriesList(reports = uiState.topCategories)
-                }
-
-                // New: Budget vs Reality
+                // 8. Budget vs Reality
                 BudgetRealitySection()
-
-                // 8. Recent Insights
-                ReportCard(title = "Recent Insights") {
-                    InsightsSection(insights = uiState.insights)
-                }
             }
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -157,14 +171,14 @@ fun ReportCard(title: String, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(16.dp))
             content()
@@ -193,7 +207,7 @@ fun DateFilterSection(
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primary,
                     selectedLabelColor = Color.Black,
-                    containerColor = Color(0xFF1E1E1E),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     labelColor = Color.Gray
                 ),
                 border = null,
@@ -254,7 +268,7 @@ fun SummaryCard(
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -264,10 +278,10 @@ fun SummaryCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = if (isCurrency) "₹%,.0f".format(amount) else amount.toInt().toString(),
+                text = if (isCurrency) formatCurrency(amount) else amount.toInt().toString(),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -300,57 +314,89 @@ fun ComparisonBarChart(income: Double, expense: Double) {
 @Composable
 fun ChartBar(height: Float, color: Color, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+        // A fixed-height track for fillMaxHeight(fraction) to resolve against — without it, this
+        // Column sizes to wrap its own content (bar + label), so the bar's requested fraction has
+        // no concrete height to be a fraction OF and every bar collapses to the same minimal size.
         Box(
             modifier = Modifier
                 .width(50.dp)
-                .fillMaxHeight(height.coerceAtLeast(0.05f))
-                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
-                .background(color)
-        )
+                .height(110.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(height.coerceAtLeast(0.05f))
+                    .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                    .background(color)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(text = label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
     }
 }
 
-@Composable
-fun CategoryPieChart(reports: List<CategoryReport>) {
-    val colors = listOf(
-        MaterialTheme.colorScheme.primary,
-        Color(0xFF4CAF50),
-        Color(0xFF2196F3),
-        Color(0xFFFFC107),
-        Color(0xFF9C27B0),
-        Color(0xFFF44336),
-        Color(0xFF00BCD4)
-    )
+/** Category color palette shared by the donut chart and its ranked list below, so a category's
+ *  dot color always matches its arc — the two views are one visual, not two disconnected ones. */
+val categoryChartColors = listOf(
+    Color(0xFF2196F3),
+    Color(0xFF4CAF50),
+    Color(0xFFFFC107),
+    Color(0xFF9C27B0),
+    Color(0xFFF44336),
+    Color(0xFF00BCD4),
+    Color(0xFFFF9800)
+)
 
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Canvas(modifier = Modifier.size(150.dp)) {
-            var startAngle = -90f
-            reports.forEachIndexed { index, report ->
-                val sweepAngle = report.percentage * 360f
-                drawArc(
-                    color = colors[index % colors.size],
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
-                    useCenter = false,
-                    style = Stroke(width = 40f, cap = StrokeCap.Round)
-                )
-                startAngle += sweepAngle
+@Composable
+fun CategoryBreakdownSection(reports: List<CategoryReport>) {
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Canvas(modifier = Modifier.size(150.dp)) {
+                var startAngle = -90f
+                reports.forEachIndexed { index, report ->
+                    val sweepAngle = report.percentage * 360f
+                    drawArc(
+                        color = categoryChartColors[index % categoryChartColors.size],
+                        startAngle = startAngle,
+                        sweepAngle = sweepAngle,
+                        useCenter = false,
+                        style = Stroke(width = 40f, cap = StrokeCap.Round)
+                    )
+                    startAngle += sweepAngle
+                }
             }
         }
-        
-        Spacer(modifier = Modifier.width(24.dp))
-        
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            reports.take(4).forEachIndexed { index, report ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colors[index % colors.size]))
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            reports.forEachIndexed { index, report ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(categoryChartColors[index % categoryChartColors.size])
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = report.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = formatCurrency(report.amount),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${report.name} (${(report.percentage * 100).toInt()}%)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray
+                        text = "${(report.percentage * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray,
+                        modifier = Modifier.width(36.dp),
+                        textAlign = TextAlign.End
                     )
                 }
             }
@@ -364,8 +410,8 @@ fun PaymentMethodAnalysis(reports: List<PaymentMethodReport>) {
         reports.forEach { report ->
             Column {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(text = report.method, style = MaterialTheme.typography.bodyMedium, color = Color.White)
-                    Text(text = "₹%,.0f".format(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+                    Text(text = report.method, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    Text(text = formatCurrency(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 LinearProgressIndicator(
@@ -380,33 +426,33 @@ fun PaymentMethodAnalysis(reports: List<PaymentMethodReport>) {
 }
 
 @Composable
-fun FriendsSummarySection(summary: FriendsReport) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "Friends Owe You", color = Color.Gray)
-            Text(text = "₹%,.0f".format(summary.friendsOweYou), color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "You Owe Friends", color = Color.Gray)
-            Text(text = "₹%,.0f".format(summary.youOweFriends), color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
-        }
-        HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "Outstanding Balance", color = Color.White)
-            Text(text = "₹%,.0f".format(summary.outstandingBalance), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        }
+fun TransferSummarySection(total: Double, count: Int) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "$count transfer${if (count == 1) "" else "s"} between your own accounts",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.Gray,
+            modifier = Modifier.weight(1f)
+        )
+        Text(text = formatCurrency(total), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-fun TopCategoriesList(reports: List<CategoryReport>) {
+fun FriendsSummarySection(summary: FriendsReport) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        reports.forEachIndexed { index, report ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "${index + 1}.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray, modifier = Modifier.width(24.dp))
-                Text(text = report.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, modifier = Modifier.weight(1f))
-                Text(text = "₹%,.0f".format(report.amount), style = MaterialTheme.typography.bodyMedium, color = Color.White, fontWeight = FontWeight.Bold)
-            }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = "Friends Owe You", color = Color.Gray)
+            Text(text = formatCurrency(summary.friendsOweYou), color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = "You Owe Friends", color = Color.Gray)
+            Text(text = formatCurrency(summary.youOweFriends), color = Color(0xFFF44336), fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(text = "Outstanding Balance", color = MaterialTheme.colorScheme.onSurface)
+            Text(text = formatCurrency(summary.outstandingBalance), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -418,7 +464,7 @@ fun InsightsSection(insights: List<String>) {
             Row(verticalAlignment = Alignment.Top) {
                 Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(text = insight, style = MaterialTheme.typography.bodyMedium, color = Color.LightGray)
+                Text(text = insight, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -432,7 +478,7 @@ fun EmptyReportsState() {
     ) {
         Icon(imageVector = Icons.Default.CalendarToday, contentDescription = null, tint = Color.DarkGray, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "No report data available.", style = MaterialTheme.typography.titleMedium, color = Color.White)
+        Text(text = "No report data available.", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
         Text(
             text = "Start adding transactions to view your financial insights.",
             style = MaterialTheme.typography.bodyMedium,
@@ -487,7 +533,7 @@ fun BudgetRealityItem(
 ) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             Text(text = "${(percentage * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -499,8 +545,8 @@ fun BudgetRealityItem(
         )
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(text = "Spent: ₹%,.0f".format(spent), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-            Text(text = "Limit: ₹%,.0f".format(limit), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(text = "Spent: ${formatCurrency(spent)}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Text(text = "Limit: ${formatCurrency(limit)}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
     }
 }

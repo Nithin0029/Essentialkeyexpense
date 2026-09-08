@@ -140,11 +140,13 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
                 setContent {
                     val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
                     val friends by repository.getAllFriends().collectAsState(initial = emptyList())
-                    
+                    val paymentMethods by repository.getPaymentMethodNames().collectAsState(initial = emptyList())
+
                     QuickAddOverlayContent(
                         initialColor = color,
                         debitCategories = debitCategories,
                         friends = friends,
+                        paymentMethods = paymentMethods,
                         onSaveExpense = { amount, description, category, type, paymentMethod, friendId, notes ->
                             saveExpenseAndSync(amount, description, category, type, paymentMethod, friendId, notes, color)
                             stopOverlay()

@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 import com.nothing.expensetracker.data.local.CategoryExpense
+import com.nothing.expensetracker.util.formatCurrency
 import java.util.Locale
 
 @Composable
@@ -24,8 +25,8 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -81,7 +82,7 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
                         color = Color.Gray
                     )
                     Text(
-                        text = "₹%,.0f".format(Locale.getDefault(), totalExpense),
+                        text = formatCurrency(totalExpense),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -97,7 +98,7 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
                     
                     CategoryItem(
                         name = category.category,
-                        amount = "₹%,.0f".format(Locale.getDefault(), category.totalAmount),
+                        amount = formatCurrency(category.totalAmount),
                         percentage = "$percentage%",
                         progress = ratio,
                         color = colors.getOrElse(index) { Color.Gray }
@@ -148,7 +149,7 @@ private fun CategoryItem(name: String, amount: String, percentage: String, progr
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -156,7 +157,7 @@ private fun CategoryItem(name: String, amount: String, percentage: String, progr
                     text = amount,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(

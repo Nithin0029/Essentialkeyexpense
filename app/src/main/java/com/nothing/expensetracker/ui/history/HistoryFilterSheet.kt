@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 fun HistoryFilterSheet(
     initialFilterState: HistoryFilterState,
     categories: List<String>,
+    methods: List<String>,
     onDismiss: () -> Unit,
     onApply: (HistoryFilterState) -> Unit
 ) {
@@ -25,8 +26,8 @@ fun HistoryFilterSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1A1A1A),
-        contentColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
     ) {
         Column(
@@ -62,7 +63,7 @@ fun HistoryFilterSheet(
             // Payment Method Filters
             FilterGroup(
                 title = "Method",
-                options = listOf("All", "UPI", "Bank", "Cash"),
+                options = methods,
                 selected = draftState.methodFilter,
                 onSelected = { draftState = draftState.copy(methodFilter = it) }
             )

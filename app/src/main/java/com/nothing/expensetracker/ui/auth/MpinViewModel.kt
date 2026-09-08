@@ -21,8 +21,8 @@ class MpinViewModel @Inject constructor(
 
     fun onNumberClick(number: String) {
         if (_mpin.value.length < 4) {
+            _error.value = null // Clear error immediately when user starts typing again
             _mpin.value += number
-            _error.value = null
         }
     }
 
@@ -39,6 +39,10 @@ class MpinViewModel @Inject constructor(
     }
 
     fun isMpinSet() = mpinManager.isMpinSet()
+
+    fun isBiometricEnabled() = mpinManager.isBiometricEnabled()
+
+    fun setBiometricEnabled(enabled: Boolean) = mpinManager.setBiometricEnabled(enabled)
 
     fun saveMpin(mpin: String) {
         mpinManager.setMpin(mpin)

@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import java.util.Locale
+import com.nothing.expensetracker.util.formatCurrency
 
 @Composable
 fun HistoryStatistics(statistics: HistoryStatistics) {
@@ -16,8 +16,8 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Row(
@@ -29,12 +29,12 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
             StatItem(label = "Count", value = statistics.count.toString())
             StatItem(
                 label = "Income",
-                value = "₹%,.0f".format(Locale.getDefault(), statistics.totalIncome),
+                value = formatCurrency(statistics.totalIncome),
                 valueColor = Color(0xFF4CAF50)
             )
             StatItem(
                 label = "Expense",
-                value = "₹%,.0f".format(Locale.getDefault(), statistics.totalExpense),
+                value = formatCurrency(statistics.totalExpense),
                 valueColor = Color(0xFFF44336)
             )
         }
@@ -42,7 +42,7 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
 }
 
 @Composable
-private fun StatItem(label: String, value: String, valueColor: Color = Color.White) {
+private fun StatItem(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
     Column {
         Text(
             text = label,

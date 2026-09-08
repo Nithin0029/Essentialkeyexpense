@@ -34,6 +34,15 @@ class MpinManager @Inject constructor(
         private const val KEY_MPIN_HASH = "mpin_hash"
         private const val KEY_MPIN_SALT = "mpin_salt"
         private const val KEY_IS_MPIN_ENABLED = "is_mpin_enabled"
+        private const val KEY_BIOMETRIC_ENABLED = "is_biometric_enabled"
+    }
+
+    fun isBiometricEnabled(): Boolean {
+        return sharedPreferences.getBoolean(KEY_BIOMETRIC_ENABLED, false)
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        sharedPreferences.edit().putBoolean(KEY_BIOMETRIC_ENABLED, enabled).apply()
     }
 
     fun isMpinSet(): Boolean {
@@ -63,6 +72,7 @@ class MpinManager @Inject constructor(
             .remove(KEY_MPIN_HASH)
             .remove(KEY_MPIN_SALT)
             .putBoolean(KEY_IS_MPIN_ENABLED, false)
+            .putBoolean(KEY_BIOMETRIC_ENABLED, false)
             .apply()
     }
 

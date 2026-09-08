@@ -31,6 +31,9 @@ local.properties
 *.pk8
 *.pem
 cert.der
+keystore.properties
+key.properties
+signing.properties
 
 # Log files
 *.log
@@ -52,7 +55,7 @@ ehthumbs.db
 Thumbs.db
 
 # Captures
-/captures/
+captures/
 *.hprof
 
 # External native builds
@@ -71,6 +74,12 @@ app/google-services.json
 
 # AI Assistant Artifacts
 .artifacts/
+.claude/settings.local.json
+.claude/launch.json
+
+# Environment / secrets
+.env
+.env.local
 
 # Others
 *.tmp
