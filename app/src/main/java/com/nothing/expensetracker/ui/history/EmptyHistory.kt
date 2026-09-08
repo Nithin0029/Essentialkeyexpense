@@ -30,7 +30,7 @@ fun EmptyHistory() {
         Text(
             text = "No Transactions Found",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(

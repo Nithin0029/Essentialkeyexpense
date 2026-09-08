@@ -86,6 +86,7 @@ dependencies {
     implementation(libs.google.api.services.sheets)
     implementation(libs.google.api.services.drive)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
     implementation(libs.hilt.navigation.compose)
 
     // Networking for Updates

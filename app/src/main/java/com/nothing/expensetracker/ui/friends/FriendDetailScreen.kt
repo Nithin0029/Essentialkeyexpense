@@ -45,17 +45,17 @@ fun FriendDetailScreen(
                 },
                 actions = {
                     IconButton(onClick = { showEditDialog = true }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit Friend", tint = Color.White)
+                        Icon(Icons.Default.Edit, contentDescription = "Edit Friend", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         if (uiState.isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -141,7 +141,7 @@ fun FriendSummaryHeader(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -157,7 +157,7 @@ fun FriendSummaryHeader(
             val balanceColor = when {
                 outstanding > 0 -> Color(0xFF4CAF50)
                 outstanding < 0 -> Color(0xFFF44336)
-                else -> Color.White
+                else -> MaterialTheme.colorScheme.onSurface
             }
             
             Text(
@@ -191,8 +191,8 @@ fun FriendSummaryHeader(
             Spacer(modifier = Modifier.height(16.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                StatItem(label = "Total Debit", value = balance?.totalDebit ?: 0.0, color = Color.White)
-                StatItem(label = "Total Credit", value = balance?.totalCredit ?: 0.0, color = Color.White)
+                StatItem(label = "Total Debit", value = balance?.totalDebit ?: 0.0, color = MaterialTheme.colorScheme.onSurface)
+                StatItem(label = "Total Credit", value = balance?.totalCredit ?: 0.0, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
@@ -220,7 +220,7 @@ fun FriendTransactionItem(transaction: Expense) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -234,7 +234,7 @@ fun FriendTransactionItem(transaction: Expense) {
                     text = if (isDebit) "Money Owed" else "Money Received",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = dateFormat.format(Date(transaction.timestamp)),
@@ -257,7 +257,7 @@ fun FriendTransactionItem(transaction: Expense) {
                     Text(
                         text = transaction.paymentMethod,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
                 }
@@ -296,7 +296,7 @@ fun SettleUpDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Settle Up with $friendName", color = Color.White) },
+        title = { Text("Settle Up with $friendName", color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
@@ -311,8 +311,8 @@ fun SettleUpDialog(
                     label = { Text("Settlement Amount") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
 
@@ -328,8 +328,8 @@ fun SettleUpDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth(),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
                     ExposedDropdownMenu(
@@ -354,8 +354,8 @@ fun SettleUpDialog(
                     label = { Text("Notes (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
             }
@@ -377,7 +377,7 @@ fun SettleUpDialog(
                 Text("Cancel", color = Color.Gray)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

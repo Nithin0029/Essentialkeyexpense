@@ -18,6 +18,7 @@ class EditTransactionViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val expenseId: Long = checkNotNull(savedStateHandle["expenseId"])
+    private val initialTimestamp: Long = savedStateHandle["initialTimestamp"] ?: 0L
 
     private val _expense = MutableStateFlow<Expense?>(null)
     val expense: StateFlow<Expense?> = _expense.asStateFlow()
@@ -40,13 +41,15 @@ class EditTransactionViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             if (expenseId == 0L) {
-                val firstCategory = repository.getAllCategories().first().firstOrNull() ?: "Other"
+                val firstCategory = repository.getCategories().first()
+                    .firstOrNull { it.parentId == null }?.name ?: "Other"
                 _expense.value = Expense(
                     amount = 0.0,
                     description = "",
                     category = firstCategory,
                     type = "Debit",
-                    paymentMethod = "UPI"
+                    paymentMethod = "UPI",
+                    timestamp = if (initialTimestamp > 0L) initialTimestamp else System.currentTimeMillis()
                 )
             } else {
                 repository.getExpenseById(expenseId).collect {
@@ -58,7 +61,9 @@ class EditTransactionViewModel @Inject constructor(
 
     fun getAllFriends() = repository.getAllFriends()
 
-    fun getAllCategories() = repository.getAllCategories()
+    /** Full category rows (including parentId) so the picker can group subcategories under
+     *  their parent instead of showing one flat list. */
+    fun getCategories() = repository.getCategories()
 
     fun getAllPaymentMethods() = repository.getPaymentMethodNames()
 

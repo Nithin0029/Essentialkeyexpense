@@ -16,8 +16,8 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Row(
@@ -42,7 +42,7 @@ fun HistoryStatistics(statistics: HistoryStatistics) {
 }
 
 @Composable
-private fun StatItem(label: String, value: String, valueColor: Color = Color.White) {
+private fun StatItem(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
     Column {
         Text(
             text = label,

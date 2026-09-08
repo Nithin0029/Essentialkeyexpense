@@ -25,8 +25,8 @@ fun CategoryBreakdownCard(totalExpense: Double, topCategories: List<CategoryExpe
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -149,7 +149,7 @@ private fun CategoryItem(name: String, amount: String, percentage: String, progr
                 Text(
                     text = name,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -157,7 +157,7 @@ private fun CategoryItem(name: String, amount: String, percentage: String, progr
                     text = amount,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(

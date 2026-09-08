@@ -3,6 +3,7 @@ package com.nothing.expensetracker.ui.reports
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.data.local.FriendBalance
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import com.nothing.expensetracker.ui.history.TransactionConstants
 import com.nothing.expensetracker.util.formatCurrency
@@ -57,6 +58,8 @@ data class ReportsUiState(
     val paymentMethodReports: List<PaymentMethodReport> = emptyList(),
     val friendsSummary: FriendsReport = FriendsReport(),
     val topCategories: List<CategoryReport> = emptyList(),
+    val transferTotal: Double = 0.0,
+    val transferCount: Int = 0,
     val insights: List<String> = emptyList(),
     val isLoading: Boolean = true
 )
@@ -79,16 +82,21 @@ class ReportsViewModel @Inject constructor(
         filter to customRange
     }.flatMapLatest { (filter, customRange) ->
         val range = calculateTimeRange(filter, customRange)
-        repository.getFilteredExpenses(
-            query = "",
-            type = "All",
-            method = "All",
-            category = "All",
-            sort = "NEWEST",
-            startTime = range.first,
-            endTime = range.second
-        ).map { expenses ->
-            calculateReports(expenses, filter)
+        combine(
+            repository.getFilteredExpenses(
+                query = "",
+                type = "All",
+                method = "All",
+                category = "All",
+                sort = "NEWEST",
+                startTime = range.first,
+                endTime = range.second
+            ),
+            // Friend balances are always all-time — a friend still owes you regardless of which
+            // date filter Reports happens to be showing right now.
+            repository.getFriendBalances()
+        ) { expenses, friendBalances ->
+            calculateReports(expenses, filter, friendBalances)
         }
     }.stateIn(
         scope = viewModelScope,
@@ -132,47 +140,36 @@ class ReportsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun calculateReports(expenses: List<Expense>, filter: DateFilter): ReportsUiState {
+    private suspend fun calculateReports(
+        expenses: List<Expense>,
+        filter: DateFilter,
+        friendBalances: List<FriendBalance>
+    ): ReportsUiState {
+        val friendsSummary = buildFriendsSummary(friendBalances)
+
         if (expenses.isEmpty()) {
-            return ReportsUiState(dateFilter = filter, isLoading = false)
+            return ReportsUiState(dateFilter = filter, friendsSummary = friendsSummary, isLoading = false)
         }
 
         var totalIncome = 0.0
         var totalExpense = 0.0
         val categoryMap = mutableMapOf<String, Double>()
         val methodMap = mutableMapOf<String, Double>()
-        
-        var friendTransactionCount = 0
-        val friendNetByName = mutableMapOf<String, Double>()
+        var transferTotal = 0.0
+        var transferCount = 0
 
         expenses.forEach { expense ->
             val isNonSpending = TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
-            if (expense.type == "Credit") {
-                if (!isNonSpending) {
-                    totalIncome += expense.amount
-                }
+            if (isNonSpending) {
+                transferTotal += expense.amount
+                transferCount++
+            } else if (expense.type == "Credit") {
+                totalIncome += expense.amount
             } else {
-                if (!isNonSpending) {
-                    totalExpense += expense.amount
-                    categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + expense.amount
-                    methodMap[expense.paymentMethod] = methodMap.getOrDefault(expense.paymentMethod, 0.0) + expense.amount
-                }
+                totalExpense += expense.amount
+                categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + expense.amount
+                methodMap[expense.paymentMethod] = methodMap.getOrDefault(expense.paymentMethod, 0.0) + expense.amount
             }
-
-            if (expense.category == "Friends" || expense.category == "Friend") {
-                friendTransactionCount++
-                val friendName = expense.friendId ?: ""
-                val delta = if (expense.type == "Debit") expense.amount else -expense.amount
-                friendNetByName[friendName] = friendNetByName.getOrDefault(friendName, 0.0) + delta
-            }
-        }
-
-        // Net each friend's balance individually before aggregating, so one friend
-        // you owe doesn't cancel out against another friend who owes you.
-        var friendsOweYou = 0.0
-        var youOweFriends = 0.0
-        friendNetByName.values.forEach { net ->
-            if (net > 0) friendsOweYou += net else youOweFriends += -net
         }
 
         val summary = SummaryData(
@@ -183,19 +180,12 @@ class ReportsViewModel @Inject constructor(
         )
 
         val categoryReports = categoryMap.map { (name, amount) ->
-            CategoryReport(name, amount, (amount / totalExpense).toFloat())
+            CategoryReport(name, amount, if (totalExpense > 0) (amount / totalExpense).toFloat() else 0f)
         }.sortedByDescending { it.amount }
 
         val methodReports = methodMap.map { (method, amount) ->
-            PaymentMethodReport(method, amount, (amount / totalExpense).toFloat())
+            PaymentMethodReport(method, amount, if (totalExpense > 0) (amount / totalExpense).toFloat() else 0f)
         }.sortedByDescending { it.amount }
-
-        val friendsSummary = FriendsReport(
-            friendsOweYou = friendsOweYou,
-            youOweFriends = youOweFriends,
-            outstandingBalance = friendsOweYou - youOweFriends,
-            friendTransactionCount = friendTransactionCount
-        )
 
         val monthOverMonthInsight = if (filter == DateFilter.THIS_MONTH) {
             buildMonthOverMonthInsight(categoryReports)
@@ -210,8 +200,34 @@ class ReportsViewModel @Inject constructor(
             paymentMethodReports = methodReports,
             friendsSummary = friendsSummary,
             topCategories = categoryReports.take(5),
+            transferTotal = transferTotal,
+            transferCount = transferCount,
             insights = insights,
             isLoading = false
+        )
+    }
+
+    /**
+     * Friends Summary is always the true, all-time outstanding balance — independent of whatever
+     * date filter Reports is showing — since "who owes who" doesn't reset when you switch to
+     * "This Week". Nets each friend individually before aggregating so one friend you owe doesn't
+     * cancel out against another friend who owes you.
+     */
+    private fun buildFriendsSummary(friendBalances: List<FriendBalance>): FriendsReport {
+        var friendsOweYou = 0.0
+        var youOweFriends = 0.0
+        friendBalances.forEach { balance ->
+            if (balance.outstandingBalance > 0) {
+                friendsOweYou += balance.outstandingBalance
+            } else if (balance.outstandingBalance < 0) {
+                youOweFriends += -balance.outstandingBalance
+            }
+        }
+        return FriendsReport(
+            friendsOweYou = friendsOweYou,
+            youOweFriends = youOweFriends,
+            outstandingBalance = friendsOweYou - youOweFriends,
+            friendTransactionCount = friendBalances.size
         )
     }
 

@@ -50,8 +50,8 @@ fun FriendsScreen(
             TopAppBar(
                 title = { Text("Friends", fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -66,7 +66,7 @@ fun FriendsScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Friend")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -85,8 +85,8 @@ fun FriendsScreen(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
                 singleLine = true
             )
@@ -155,7 +155,7 @@ fun FriendsScreen(
             // Simple confirmation for friends with NO history
             AlertDialog(
                 onDismissRequest = { friendToDelete = null },
-                title = { Text("Delete Friend", color = Color.White) },
+                title = { Text("Delete Friend", color = MaterialTheme.colorScheme.onSurface) },
                 text = { Text("Are you sure you want to delete \"$friendName\"?", color = Color.Gray) },
                 confirmButton = {
                     Button(
@@ -185,18 +185,18 @@ fun FriendsScreen(
                         Text("Cancel", color = Color.Gray)
                     }
                 },
-                containerColor = Color(0xFF1E1E1E),
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(20.dp)
             )
         } else {
             // Complex Choice Dialog for friends WITH history
             AlertDialog(
                 onDismissRequest = { friendToDelete = null },
-                title = { Text("Friend is used in transactions", color = Color.White) },
+                title = { Text("Friend is used in transactions", color = MaterialTheme.colorScheme.onSurface) },
                 text = {
                     Text(
                         text = "This friend is linked to existing transactions. Choose what you want to do.",
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 },
@@ -258,7 +258,7 @@ fun FriendsScreen(
                         }
                     }
                 },
-                containerColor = Color(0xFF1E1E1E),
+                containerColor = MaterialTheme.colorScheme.surface,
                 shape = RoundedCornerShape(20.dp)
             )
         }
@@ -280,7 +280,7 @@ fun FriendItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -309,7 +309,7 @@ fun FriendItem(
                     Text(
                         text = friend.name,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
                     val statusText = when {
@@ -384,7 +384,7 @@ fun EmptyFriendsState(onAddClick: () -> Unit) {
         Text(
             text = "No Friends Added",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(

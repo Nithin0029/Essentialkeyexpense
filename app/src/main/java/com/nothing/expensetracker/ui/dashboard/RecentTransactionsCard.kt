@@ -6,11 +6,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Fastfood
-import androidx.compose.material.icons.filled.LocalHospital
-import androidx.compose.material.icons.filled.LocalMovies
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -22,6 +17,7 @@ import androidx.compose.ui.unit.dp
 
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.util.formatCurrency
+import com.nothing.expensetracker.util.getCategoryIcon
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,8 +27,8 @@ fun RecentTransactionsCard(transactions: List<Expense>) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -95,17 +91,6 @@ fun RecentTransactionsCard(transactions: List<Expense>) {
     }
 }
 
-private fun getCategoryIcon(category: String): ImageVector {
-    return when (category.lowercase()) {
-        "food" -> Icons.Default.Fastfood
-        "medical" -> Icons.Default.LocalHospital
-        "shopping" -> Icons.Default.LocalOffer
-        "movies", "entertainment" -> Icons.Default.LocalMovies
-        "salary", "income" -> Icons.Default.Payments
-        else -> Icons.Default.Payments
-    }
-}
-
 @Composable
 private fun TransactionRow(
     category: String,
@@ -132,7 +117,7 @@ private fun TransactionRow(
                     imageVector = icon,
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
-                    tint = Color.White
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -141,13 +126,13 @@ private fun TransactionRow(
                     text = category,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (notes.isNotBlank()) {
                     Text(
                         text = notes,
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.LightGray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
                     )
                 }
@@ -166,7 +151,7 @@ private fun TransactionRow(
                             text = method,
                             style = MaterialTheme.typography.labelSmall,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                            color = Color.LightGray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

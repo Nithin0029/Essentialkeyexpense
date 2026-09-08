@@ -57,7 +57,7 @@ fun DashboardScreen(
                         )
                     }
                 },
-                containerColor = Color.Black
+                containerColor = MaterialTheme.colorScheme.background
             ) { paddingValues ->
                 Column(
                     modifier = Modifier
@@ -146,7 +146,7 @@ fun DashboardEmptyState(onAddClick: () -> Unit) {
         Text(
             text = "No Transactions Yet",
             style = MaterialTheme.typography.headlineSmall,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -181,7 +181,7 @@ fun DashboardHeader(isSynced: Boolean) {
                 text = "Dashboard",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onBackground
             )
             Text(
                 text = currentDate,
@@ -191,7 +191,7 @@ fun DashboardHeader(isSynced: Boolean) {
         }
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color(0xFF1E1E1E),
+            color = MaterialTheme.colorScheme.surfaceVariant,
             modifier = Modifier.padding(4.dp)
         ) {
             Row(
@@ -207,7 +207,7 @@ fun DashboardHeader(isSynced: Boolean) {
                 Text(
                     text = if (isSynced) "Synced" else "Pending",
                     style = MaterialTheme.typography.labelMedium,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -225,8 +225,8 @@ fun AssetsOverviewCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         )
     ) {
         Column(
@@ -242,7 +242,7 @@ fun AssetsOverviewCard(
                 text = formatCurrency(totalAssets),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
             
             Spacer(modifier = Modifier.height(20.dp))
@@ -263,7 +263,7 @@ fun AssetsOverviewCard(
                         text = formatCurrency(bankBalance),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -276,7 +276,7 @@ fun AssetsOverviewCard(
                         text = formatCurrency(cashBalance),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -298,7 +298,7 @@ fun BudgetSummaryCard(
                 .fillMaxWidth()
                 .clickable(onClick = onClick),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
@@ -306,7 +306,7 @@ fun BudgetSummaryCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = "Monthly Budget", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                    Text(text = "Monthly Budget", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                     Text(
                         text = formatCurrency(usage.budget.amount),
                         style = MaterialTheme.typography.bodyMedium,

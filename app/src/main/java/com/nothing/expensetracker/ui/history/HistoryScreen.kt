@@ -1,6 +1,9 @@
 package com.nothing.expensetracker.ui.history
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,6 +16,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun HistoryScreen(
     onEditTransaction: (Long) -> Unit,
+    onAddTransaction: (initialTimestamp: Long) -> Unit,
     viewModel: HistoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -28,8 +32,18 @@ fun HistoryScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
-        containerColor = Color.Black,
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { onAddTransaction(0L) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = Color.Black,
+                shape = CircleShape
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add Transaction")
+            }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -61,7 +75,8 @@ fun HistoryScreen(
                         onExpenseClick = { expense ->
                             selectedExpense = expense
                             showBottomSheet = true
-                        }
+                        },
+                        onAddForMonth = { timestamp -> onAddTransaction(timestamp) }
                     )
                 }
             }
@@ -98,7 +113,7 @@ fun HistoryScreen(
     if (showDeleteDialog && selectedExpense != null) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Transaction?", color = Color.White) },
+            title = { Text("Delete Transaction?", color = MaterialTheme.colorScheme.onSurface) },
             text = { Text("This action cannot be undone.", color = Color.Gray) },
             confirmButton = {
                 Button(
@@ -129,7 +144,7 @@ fun HistoryScreen(
                     Text("Cancel", color = Color.Gray)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)
         )
     }

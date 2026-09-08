@@ -38,10 +38,19 @@ fun QuickAddOverlayContent(
     var amountText by remember { mutableStateOf("") }
     var descriptionText by remember { mutableStateOf("") }
     var transactionType by remember { mutableStateOf("Debit") }
-    var selectedCategory by remember { mutableStateOf(if (debitCategories.isNotEmpty()) debitCategories.first() else "Other") }
+    // Starts empty since debitCategories is usually still empty on first composition (it arrives
+    // from a Flow a moment later) — resolving eagerly here would lock this in to the "Other"
+    // fallback and never update once the real list loads.
+    var selectedCategory by remember { mutableStateOf("") }
     var paymentMethod by remember { mutableStateOf("UPI") }
     var notes by remember { mutableStateOf("") }
     var friendIdText by remember { mutableStateOf("") }
+
+    LaunchedEffect(debitCategories) {
+        if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
+            selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(transactionType, debitCategories)
+        }
+    }
 
     val currentCategories = if (transactionType == "Credit") {
         com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES

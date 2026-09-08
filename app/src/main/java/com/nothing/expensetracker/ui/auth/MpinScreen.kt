@@ -6,15 +6,19 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nothing.expensetracker.auth.BiometricAuthHelper
 
 @Composable
 fun CreateMpinScreen(
@@ -79,7 +83,22 @@ fun UnlockScreen(
 ) {
     val mpin by viewModel.mpin.collectAsState()
     val error by viewModel.error.collectAsState()
-    
+    val activity = LocalContext.current as? FragmentActivity
+    val biometricAvailable = activity != null && BiometricAuthHelper.isAvailable(activity)
+    val biometricEnabled = viewModel.isBiometricEnabled() && biometricAvailable
+
+    fun promptBiometric() {
+        if (activity != null && biometricAvailable) {
+            BiometricAuthHelper.authenticate(activity, onSuccess = onUnlocked)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (biometricEnabled) {
+            promptBiometric()
+        }
+    }
+
     LaunchedEffect(mpin) {
         if (mpin.length == 4) {
             kotlinx.coroutines.delay(200) // Small delay to show the last dot
@@ -95,7 +114,9 @@ fun UnlockScreen(
         mpin = mpin,
         error = error,
         onNumberClick = viewModel::onNumberClick,
-        onDeleteClick = viewModel::onDeleteClick
+        onDeleteClick = viewModel::onDeleteClick,
+        showBiometricButton = biometricEnabled,
+        onBiometricClick = { promptBiometric() }
     )
 }
 
@@ -175,12 +196,14 @@ fun MpinEntryLayout(
     mpin: String,
     error: String? = null,
     onNumberClick: (String) -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    showBiometricButton: Boolean = false,
+    onBiometricClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -188,7 +211,7 @@ fun MpinEntryLayout(
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onBackground,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -223,9 +246,28 @@ fun MpinEntryLayout(
         } else {
             Spacer(modifier = Modifier.height(16.dp)) // Maintain space
         }
-        
+
+        if (showBiometricButton) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(Color.DarkGray.copy(alpha = 0.3f))
+                    .clickable(onClick = onBiometricClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Fingerprint,
+                    contentDescription = "Unlock with biometrics",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(48.dp))
-        
+
         // Keypad
         val numbers = listOf(
             listOf("1", "2", "3"),
@@ -273,13 +315,13 @@ fun KeypadButton(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.Backspace,
                 contentDescription = "Delete",
-                tint = Color.White
+                tint = MaterialTheme.colorScheme.onBackground
             )
         } else if (text.isNotEmpty()) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.headlineSmall,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontWeight = FontWeight.Medium
             )
         }

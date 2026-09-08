@@ -86,6 +86,10 @@ class ExpenseRepository @Inject constructor(
         categoryDao.updateCategory(updatedCategory)
     }
 
+    suspend fun countSubcategories(parentId: Long): Int {
+        return categoryDao.countSubcategories(parentId)
+    }
+
     suspend fun deleteCategory(category: Category) {
         if (category.name == "Friends" || category.name == "Transfer") return // Safety lock
 
@@ -136,31 +140,50 @@ class ExpenseRepository @Inject constructor(
         categoryDao.updateCategory(deletedCategory)
     }
 
+    /**
+     * Ensures every default category exists, without touching custom categories or ones the user
+     * deleted. Runs on every startup (not just fresh installs) so existing installs pick up newly
+     * added defaults too; [CategoryDao.getCategoryByNameAnyStatus] also matches soft-deleted rows
+     * so a category the user deliberately removed is never silently re-added.
+     */
     suspend fun seedDefaultCategories() {
-        android.util.Log.d("CATEGORY_SYNC", "Initialization Started")
+        android.util.Log.d("CATEGORY_SYNC", "Ensuring default categories")
         try {
-            val currentCount = categoryDao.countCategories()
-            if (currentCount > 0) {
-                android.util.Log.d("CATEGORY_SYNC", "Already Initialized | Count: $currentCount | Skipped")
-                return
-            }
-
             val defaults = listOf(
-                "Home", "Food", "Snacks", "College", "Fuel", 
-                "Entertainment", "Medical", "Fitness", "Income", 
-                "Travel", "Shopping", "Friends", "Transfer", "Other"
+                "Food", "Home", "Bills", "Travel", "Shopping",
+                "Entertainment", "Medical", "Friends", "Transfer", "Other"
             )
+            var inserted = 0
             defaults.forEach { name ->
-                // Insert directly to DAO to avoid triggering the 'insertCategory' cloud sync logic during seeding
-                categoryDao.insertCategory(Category(
-                    name = name, 
-                    isSystem = true,
-                    syncStatus = "Synced" 
-                ))
+                if (categoryDao.getCategoryByNameAnyStatus(name) == null) {
+                    categoryDao.insertCategory(Category(name = name, isSystem = true, syncStatus = "Synced"))
+                    inserted++
+                }
             }
-            android.util.Log.i("CATEGORY_SYNC", "Default Categories Inserted | Count: ${defaults.size}")
+            android.util.Log.i("CATEGORY_SYNC", "Default categories ensured | Newly inserted: $inserted")
         } catch (e: Exception) {
             android.util.Log.e("CATEGORY_SYNC", "Critical error during seeding", e)
+        }
+    }
+
+    /**
+     * One-time cleanup for categories dropped from the default set: "Income" made no sense as a
+     * Debit-type category (Credit already has Salary/Refund/etc.), and Groceries/Snacks/Fuel/
+     * Fitness/College were trimmed down to the categories actually wanted. Only removes a category
+     * when it's unused so no existing transaction ever loses its category.
+     */
+    suspend fun cleanupLegacyCategories() {
+        try {
+            val legacyNames = listOf("Income", "Groceries", "Snacks", "Fuel", "Fitness", "College")
+            legacyNames.forEach { name ->
+                val category = categoryDao.getCategoryByNameCaseInsensitive(name) ?: return@forEach
+                if (expenseDao.countExpensesByCategory(category.name) == 0) {
+                    categoryDao.updateCategory(category.copy(syncStatus = "Deleted"))
+                    android.util.Log.i("CATEGORY_SYNC", "Removed unused legacy category: $name")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CATEGORY_SYNC", "Legacy category cleanup failed", e)
         }
     }
 

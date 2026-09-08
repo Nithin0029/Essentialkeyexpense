@@ -22,7 +22,7 @@ fun FriendDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column {
                 OutlinedTextField(
@@ -36,8 +36,8 @@ fun FriendDialog(
                     isError = error != null,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 if (error != null) {
@@ -69,7 +69,7 @@ fun FriendDialog(
                     onClick = onDismiss,
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Cancel", color = Color.White)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                 }
                 
                 Button(
@@ -89,7 +89,7 @@ fun FriendDialog(
             }
         },
         dismissButton = null,
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

@@ -6,11 +6,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Fastfood
-import androidx.compose.material.icons.filled.LocalHospital
-import androidx.compose.material.icons.filled.LocalMovies
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,11 +16,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.util.formatCurrency
+import com.nothing.expensetracker.util.getCategoryIcon
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -31,7 +29,8 @@ import java.util.*
 fun TransactionList(
     expenses: List<Expense>,
     sortOption: SortOption,
-    onExpenseClick: (Expense) -> Unit
+    onExpenseClick: (Expense) -> Unit,
+    onAddForMonth: (timestamp: Long) -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
     val monthFormat = remember { SimpleDateFormat("MMMM yyyy", Locale.getDefault()) }
@@ -52,7 +51,14 @@ fun TransactionList(
         if (monthGroups != null) {
             monthGroups.forEach { (month, monthExpenses) ->
                 stickyHeader(key = month) {
-                    MonthHeader(label = month, expenses = monthExpenses)
+                    // All expenses in a group share the same month/year, so any member's
+                    // timestamp is a valid representative date for a new transaction in this month.
+                    val representativeTimestamp = monthExpenses.first().timestamp
+                    MonthHeader(
+                        label = month,
+                        expenses = monthExpenses,
+                        onAddClick = { onAddForMonth(representativeTimestamp) }
+                    )
                 }
                 items(
                     items = monthExpenses,
@@ -93,7 +99,7 @@ fun TransactionList(
 }
 
 @Composable
-private fun MonthHeader(label: String, expenses: List<Expense>) {
+private fun MonthHeader(label: String, expenses: List<Expense>, onAddClick: () -> Unit) {
     var income = 0.0
     var expense = 0.0
     expenses.forEach {
@@ -107,17 +113,28 @@ private fun MonthHeader(label: String, expenses: List<Expense>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black)
-            .padding(vertical = 10.dp),
+            .background(MaterialTheme.colorScheme.background)
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onAddClick, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.AddCircle,
+                    contentDescription = "Add transaction in $label",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
         Text(
             text = (if (net >= 0) "+" else "-") + formatCurrency(kotlin.math.abs(net)),
             style = MaterialTheme.typography.bodyMedium,
@@ -127,13 +144,3 @@ private fun MonthHeader(label: String, expenses: List<Expense>) {
     }
 }
 
-private fun getCategoryIcon(category: String): ImageVector {
-    return when (category.lowercase()) {
-        "food" -> Icons.Default.Fastfood
-        "medical" -> Icons.Default.LocalHospital
-        "shopping" -> Icons.Default.LocalOffer
-        "movies", "entertainment" -> Icons.Default.LocalMovies
-        "salary", "income" -> Icons.Default.Payments
-        else -> Icons.Default.Payments
-    }
-}

@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.nothing.expensetracker.data.local.Category
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.ui.history.TransactionConstants
 import android.widget.Toast
@@ -65,16 +66,16 @@ fun EditTransactionScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
-        val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
+        val categories by viewModel.getCategories().collectAsState(initial = emptyList())
         val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
         expenseState?.let { expense ->
             EditTransactionContent(
@@ -104,7 +105,7 @@ fun EditTransactionContent(
     modifier: Modifier = Modifier,
     expense: Expense,
     friends: List<String>,
-    categories: List<String>,
+    categories: List<Category>,
     paymentMethods: List<String>,
     isSaving: Boolean,
     onSave: (Expense) -> Unit,
@@ -123,12 +124,28 @@ fun EditTransactionContent(
     val types = TransactionConstants.TRANSACTION_TYPES
     val creditCategories = TransactionConstants.CREDIT_CATEGORIES
 
-    val currentCategories = if (type == "Credit") creditCategories else categories
+    // Only Debit categories carry a hierarchy — Credit's category list is a small fixed set
+    // (Salary/Refund/etc.) with no need for subcategories.
+    val topLevelDebitCategories = categories.filter { it.parentId == null }
+    val categoryByName = categories.associateBy { it.name }
+    val currentCategories = if (type == "Credit") creditCategories else topLevelDebitCategories.map { it.name }
+
+    // Resolve which top-level category the currently-selected one belongs to (itself, if it's
+    // already top-level), so the subcategory picker below can show that parent's children.
+    val selectedCategoryObj = categoryByName[category]
+    val selectedTopLevel = if (type == "Debit") {
+        if (selectedCategoryObj?.parentId != null) {
+            categories.find { it.id == selectedCategoryObj.parentId }
+        } else selectedCategoryObj
+    } else null
+    val subcategoriesOfSelected = selectedTopLevel?.let { top -> categories.filter { it.parentId == top.id } } ?: emptyList()
+
     val isFriendCategory = TransactionConstants.isFriendCategory(type, category)
-    
+
     val methods = TransactionConstants.getAvailableMethods(type, category, paymentMethods)
 
     var categoryExpanded by remember { mutableStateOf(false) }
+    var subcategoryExpanded by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
     var methodExpanded by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -181,8 +198,8 @@ fun EditTransactionContent(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 
@@ -198,8 +215,8 @@ fun EditTransactionContent(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 
@@ -219,8 +236,8 @@ fun EditTransactionContent(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
             ExposedDropdownMenu(
@@ -233,7 +250,7 @@ fun EditTransactionContent(
                         onClick = {
                             if (type != t) {
                                 type = t
-                                category = TransactionConstants.getInitialCategory(t, categories)
+                                category = TransactionConstants.getInitialCategory(t, topLevelDebitCategories.map { it.name })
                                 // Reset payment method if RAS was selected but is no longer valid
                                 if (paymentMethod == "RAS") {
                                     paymentMethod = "UPI"
@@ -262,8 +279,8 @@ fun EditTransactionContent(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
             ExposedDropdownMenu(
@@ -286,6 +303,54 @@ fun EditTransactionContent(
             }
         }
 
+        // Subcategory (only when the selected Debit category has any, e.g. Bike -> Petrol/Service)
+        if (subcategoriesOfSelected.isNotEmpty()) {
+            ExposedDropdownMenuBox(
+                expanded = subcategoryExpanded,
+                onExpandedChange = { subcategoryExpanded = !subcategoryExpanded }
+            ) {
+                OutlinedTextField(
+                    value = if (selectedCategoryObj?.parentId != null) category else "None",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Subcategory (optional)") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = subcategoryExpanded) },
+                    modifier = Modifier.menuAnchor().fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.DarkGray,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = subcategoryExpanded,
+                    onDismissRequest = { subcategoryExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("None", color = Color.Gray) },
+                        onClick = {
+                            category = selectedTopLevel!!.name
+                            subcategoryExpanded = false
+                        }
+                    )
+                    subcategoriesOfSelected.forEach { sub ->
+                        DropdownMenuItem(
+                            text = { Text(sub.name) },
+                            onClick = {
+                                category = sub.name
+                                subcategoryExpanded = false
+                                if (paymentMethod == "RAS") {
+                                    paymentMethod = "UPI"
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
         // Payment Method
         ExposedDropdownMenuBox(
             expanded = methodExpanded,
@@ -302,8 +367,8 @@ fun EditTransactionContent(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 )
             )
             ExposedDropdownMenu(
@@ -340,8 +405,8 @@ fun EditTransactionContent(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = Color.DarkGray,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 DropdownMenu(
@@ -386,8 +451,8 @@ fun EditTransactionContent(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = Color.DarkGray,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
 
@@ -433,7 +498,7 @@ fun EditTransactionContent(
                 if (isSaving) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         strokeWidth = 2.dp
                     )
                 } else {

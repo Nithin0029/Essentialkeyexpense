@@ -28,8 +28,8 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A1A),
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) {
             Column(
@@ -57,7 +57,7 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
                     text = formatCurrency(income),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Total Credits",
@@ -72,8 +72,8 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF1A1A1A),
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface
             )
         ) {
             Column(
@@ -101,7 +101,7 @@ fun IncomeExpenseCards(income: Double, expense: Double) {
                     text = formatCurrency(expense),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Total Debits",

@@ -29,24 +29,24 @@ fun HistoryHeader(
             text = "History",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Box {
             IconButton(onClick = { showSortMenu = true }) {
-                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort", tint = MaterialTheme.colorScheme.onBackground)
             }
             DropdownMenu(
                 expanded = showSortMenu,
                 onDismissRequest = { showSortMenu = false },
-                containerColor = Color(0xFF1E1E1E)
+                containerColor = MaterialTheme.colorScheme.surface
             ) {
                 SortOption.entries.forEach { option ->
                     DropdownMenuItem(
                         text = {
                             Text(
                                 text = option.label,
-                                color = if (option == currentSort) MaterialTheme.colorScheme.primary else Color.White
+                                color = if (option == currentSort) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                             )
                         },
                         onClick = {

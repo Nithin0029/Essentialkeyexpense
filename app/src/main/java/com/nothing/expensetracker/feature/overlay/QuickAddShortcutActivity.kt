@@ -40,7 +40,9 @@ class QuickAddShortcutActivity : ComponentActivity() {
         setContent {
             var amountText by remember { mutableStateOf("") }
             var selectedType by remember { mutableStateOf("Debit") }
-            var selectedCategory by remember { mutableStateOf("Food") }
+            // Empty until the live category list loads; resolved below instead of a hardcoded
+            // guess like "Food" that could stop existing if the user deletes/renames it.
+            var selectedCategory by remember { mutableStateOf("") }
             var selectedMethod by remember { mutableStateOf("UPI") }
             var notesText by remember { mutableStateOf("") }
             var friendId by remember { mutableStateOf("") }
@@ -52,6 +54,12 @@ class QuickAddShortcutActivity : ComponentActivity() {
             val friends by repository.getAllFriends().collectAsState(initial = emptyList())
             val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
             val userPaymentMethods by repository.getPaymentMethodNames().collectAsState(initial = emptyList())
+
+            LaunchedEffect(debitCategories) {
+                if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
+                    selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(selectedType, debitCategories)
+                }
+            }
 
             val currentCategories = if (selectedType == "Credit") {
                 com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
@@ -125,7 +133,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                 onClick = { catExpanded = true },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Category: $selectedCategory", color = Color.White)
+                                Text("Category: ${selectedCategory.ifEmpty { "Loading…" }}", color = Color.White)
                             }
                             DropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
                                 currentCategories.forEach { cat ->
@@ -250,7 +258,11 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                         Toast.makeText(applicationContext, "Please select a friend", Toast.LENGTH_SHORT).show()
                                         return@Button
                                     }
-                                    
+                                    if (selectedCategory.isBlank()) {
+                                        Toast.makeText(applicationContext, "Still loading categories, try again", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+
                                     saveTransaction(
                                         amount = amountVal,
                                         category = selectedCategory,

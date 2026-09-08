@@ -31,8 +31,8 @@ fun TransactionCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color.White
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
         ),
         onClick = onClick
     ) {
@@ -54,7 +54,7 @@ fun TransactionCard(
                         imageVector = icon,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = Color.White
+                        tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -64,7 +64,7 @@ fun TransactionCard(
                             text = category,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         if (!friendName.isNullOrBlank()) {
                             Text(
@@ -103,7 +103,7 @@ fun TransactionCard(
                                 text = method,
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                color = Color.LightGray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -127,7 +127,7 @@ fun TransactionCard(
                     text = amount,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }

@@ -106,6 +106,9 @@ fun AppNavigation(
                 HistoryScreen(
                     onEditTransaction = { expenseId ->
                         navController.navigate("edit_transaction/$expenseId")
+                    },
+                    onAddTransaction = { initialTimestamp ->
+                        navController.navigate("edit_transaction/0?initialTimestamp=$initialTimestamp")
                     }
                 )
             }
@@ -132,7 +135,10 @@ fun AppNavigation(
             }
             composable(
                 route = Screen.EditTransaction.route,
-                arguments = listOf(navArgument("expenseId") { type = NavType.LongType })
+                arguments = listOf(
+                    navArgument("expenseId") { type = NavType.LongType },
+                    navArgument("initialTimestamp") { type = NavType.LongType; defaultValue = 0L }
+                )
             ) {
                 EditTransactionScreen(
                     onNavigateBack = { navController.popBackStack() },

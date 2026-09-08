@@ -7,6 +7,7 @@ import com.google.android.gms.tasks.Task
 import com.nothing.expensetracker.auth.AuthState
 import com.nothing.expensetracker.auth.GoogleAuthManager
 import com.nothing.expensetracker.data.local.AppPrefs
+import com.nothing.expensetracker.data.local.ThemeMode
 import com.nothing.expensetracker.sync.SpreadsheetManager
 import com.nothing.expensetracker.sync.SyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,7 +32,12 @@ class SettingsViewModel @Inject constructor(
 
     val openingBankBalance: StateFlow<Double> = appPrefs.openingBankBalance
     val openingCashBalance: StateFlow<Double> = appPrefs.openingCashBalance
+    val themeMode: StateFlow<ThemeMode> = appPrefs.themeMode
     val authState: StateFlow<AuthState> = googleAuthManager.authState
+
+    fun setThemeMode(mode: ThemeMode) {
+        appPrefs.setThemeMode(mode)
+    }
 
     private val _spreadsheetState = MutableStateFlow<SpreadsheetState>(SpreadsheetState.Idle)
     val spreadsheetState: StateFlow<SpreadsheetState> = _spreadsheetState.asStateFlow()

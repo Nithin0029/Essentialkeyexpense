@@ -8,12 +8,31 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
 @Singleton
 class AppPrefs @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val prefs = context.getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
     private val syncPrefs = context.getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+
+    private val _themeMode = MutableStateFlow(getThemeMode())
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("theme_mode", mode.name).apply()
+        _themeMode.value = mode
+    }
+
+    private fun getThemeMode(): ThemeMode {
+        val stored = prefs.getString("theme_mode", null) ?: return ThemeMode.SYSTEM
+        return try {
+            ThemeMode.valueOf(stored)
+        } catch (e: IllegalArgumentException) {
+            ThemeMode.SYSTEM
+        }
+    }
 
     // Migration and Storage logic for Opening Bank Balance
     private val _openingBankBalance = MutableStateFlow(getOpeningBankBalance())

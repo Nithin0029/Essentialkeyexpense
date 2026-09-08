@@ -26,8 +26,8 @@ fun HistoryFilterSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF1A1A1A),
-        contentColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         dragHandle = { BottomSheetDefaults.DragHandle(color = Color.DarkGray) }
     ) {
         Column(

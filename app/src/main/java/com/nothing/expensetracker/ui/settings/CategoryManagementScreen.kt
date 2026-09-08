@@ -8,23 +8,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.DirectionsTransit
-import androidx.compose.material.icons.filled.Fastfood
-import androidx.compose.material.icons.filled.Group
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LocalGasStation
-import androidx.compose.material.icons.filled.LocalHospital
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.School
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.TheaterComedy
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.SubdirectoryArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Category
+import com.nothing.expensetracker.util.getCategoryIcon
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,9 +36,11 @@ fun CategoryManagementScreen(
     viewModel: CategoryViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    
+
     var showAddDialog by remember { mutableStateOf(false) }
-    
+    var subcategoryParent by remember { mutableStateOf<Category?>(null) }
+    var expandedParentIds by remember { mutableStateOf(setOf<Long>()) }
+
     // Deletion Flow State
     var categoryToDelete by remember { mutableStateOf<Category?>(null) }
     var showInUseDialog by remember { mutableStateOf(false) }
@@ -102,13 +95,40 @@ fun CategoryManagementScreen(
                     contentPadding = PaddingValues(bottom = 80.dp)
                 ) {
                     items(
-                        items = uiState.categories,
+                        items = uiState.topLevelCategories,
                         key = { it.id }
                     ) { category ->
-                        CategoryItem(
-                            category = category,
-                            onDeleteClick = { categoryToDelete = category }
-                        )
+                        val subcategories = uiState.subcategoriesOf(category.id)
+                        val expanded = category.id in expandedParentIds
+                        Column {
+                            CategoryItem(
+                                category = category,
+                                subcategoryCount = subcategories.size,
+                                expanded = expanded,
+                                onToggleExpand = {
+                                    expandedParentIds = if (expanded) {
+                                        expandedParentIds - category.id
+                                    } else {
+                                        expandedParentIds + category.id
+                                    }
+                                },
+                                onAddSubcategoryClick = { subcategoryParent = category },
+                                onDeleteClick = { categoryToDelete = category }
+                            )
+                            if (expanded) {
+                                Column(
+                                    modifier = Modifier.padding(start = 24.dp, top = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    subcategories.forEach { subcategory ->
+                                        SubcategoryItem(
+                                            category = subcategory,
+                                            onDeleteClick = { categoryToDelete = subcategory }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -120,7 +140,20 @@ fun CategoryManagementScreen(
             title = "Add Category",
             onDismiss = { showAddDialog = false },
             onConfirm = { name, onResult ->
-                viewModel.addCategory(name, onResult)
+                viewModel.addCategory(name = name, onResult = onResult)
+            }
+        )
+    }
+
+    subcategoryParent?.let { parent ->
+        CategoryDialog(
+            title = "Add Subcategory to \"${parent.name}\"",
+            onDismiss = { subcategoryParent = null },
+            onConfirm = { name, onResult ->
+                viewModel.addCategory(name = name, parentId = parent.id) { success, message ->
+                    if (success) expandedParentIds = expandedParentIds + parent.id
+                    onResult(success, message)
+                }
             }
         )
     }
@@ -337,6 +370,10 @@ fun CategoryManagementScreen(
 @Composable
 fun CategoryItem(
     category: Category,
+    subcategoryCount: Int,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onAddSubcategoryClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(
@@ -351,7 +388,12 @@ fun CategoryItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = subcategoryCount > 0, onClick = onToggleExpand)
+            ) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -374,22 +416,48 @@ fun CategoryItem(
                         color = Color.White,
                         fontWeight = FontWeight.Medium
                     )
-                    
-                    Surface(
-                        color = if (category.isSystem) Color.DarkGray else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        shape = RoundedCornerShape(4.dp),
-                        modifier = Modifier.padding(top = 4.dp)
-                    ) {
-                        Text(
-                            text = if (category.isSystem) "System" else "Custom",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (category.isSystem) Color.LightGray else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            color = if (category.isSystem) Color.DarkGray else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = if (category.isSystem) "System" else "Custom",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (category.isSystem) Color.LightGray else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (subcategoryCount > 0) {
+                            Text(
+                                text = "  $subcategoryCount subcategor${if (subcategoryCount == 1) "y" else "ies"}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 }
+                if (subcategoryCount > 0) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = Color.Gray
+                    )
+                }
             }
-            
+
+            IconButton(onClick = onAddSubcategoryClick) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Subcategory",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
             if (category.name != "Friends") {
                 IconButton(onClick = onDeleteClick) {
                     Icon(
@@ -413,21 +481,46 @@ fun CategoryItem(
     }
 }
 
-private fun getCategoryIcon(name: String): androidx.compose.ui.graphics.vector.ImageVector {
-    return when (name.lowercase()) {
-        "food", "snacks" -> Icons.Default.Fastfood
-        "home" -> Icons.Default.Home
-        "fuel" -> Icons.Default.LocalGasStation
-        "travel" -> Icons.Default.DirectionsTransit
-        "shopping" -> Icons.Default.ShoppingBag
-        "medical" -> Icons.Default.LocalHospital
-        "fitness" -> Icons.AutoMirrored.Filled.DirectionsRun
-        "income" -> Icons.Default.Payments
-        "friends" -> Icons.Default.Group
-        "college" -> Icons.Default.School
-        "entertainment" -> Icons.Default.TheaterComedy
-        "books" -> Icons.Default.Book
-        else -> Icons.Default.Category
+@Composable
+fun SubcategoryItem(
+    category: Category,
+    onDeleteClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF141414))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Icon(
+                    imageVector = Icons.Default.SubdirectoryArrowRight,
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = category.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White
+                )
+            }
+            IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete",
+                    tint = Color.Red.copy(alpha = 0.7f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
     }
 }
 

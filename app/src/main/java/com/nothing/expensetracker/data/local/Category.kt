@@ -14,5 +14,8 @@ data class Category(
     val isSystem: Boolean = false,
     val syncStatus: String = "Synced", // "Pending", "Syncing", "Synced", "Failed", "Deleted"
     val lastSyncAttempt: Long = 0,
-    val syncError: String? = null
+    val syncError: String? = null,
+    /** Null for a top-level category; otherwise the [id] of the parent category it groups under
+     *  (e.g. "Petrol" under "Bike"). Only one level of nesting is supported. */
+    val parentId: Long? = null
 )
