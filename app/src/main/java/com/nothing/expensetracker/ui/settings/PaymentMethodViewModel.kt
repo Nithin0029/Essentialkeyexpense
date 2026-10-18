@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.nothing.expensetracker.sync.SpreadsheetManager
 import javax.inject.Inject
 
 data class PaymentMethodUiState(
@@ -19,7 +20,8 @@ data class PaymentMethodUiState(
 
 @HiltViewModel
 class PaymentMethodViewModel @Inject constructor(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val spreadsheetManager: SpreadsheetManager
 ) : ViewModel() {
 
     val uiState: StateFlow<PaymentMethodUiState> = repository.getPaymentMethods()
@@ -78,6 +80,9 @@ class PaymentMethodViewModel @Inject constructor(
             val usageCount = repository.getPaymentMethodUsageCount(method.name)
             if (usageCount == 0) {
                 repository.deletePaymentMethod(method)
+                // Payment methods carry no syncStatus, so the removal has to be pushed here
+                // rather than queued for the next sync cycle.
+                spreadsheetManager.deletePaymentMethodFromSheet(method.name)
                 onResult(true, null)
             } else {
                 onResult(false, "IN_USE") // Special signal for the UI to show the complex dialog
@@ -94,6 +99,7 @@ class PaymentMethodViewModel @Inject constructor(
     fun moveTransactionsAndDelete(method: PaymentMethod, replacementName: String, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             repository.deletePaymentMethodAndMoveTransactions(method, replacementName)
+            spreadsheetManager.deletePaymentMethodFromSheet(method.name)
             onResult(true, null)
         }
     }
@@ -101,6 +107,7 @@ class PaymentMethodViewModel @Inject constructor(
     fun deleteTransactionsAndDelete(method: PaymentMethod, onResult: (Boolean, String?) -> Unit) {
         viewModelScope.launch {
             repository.deletePaymentMethodAndTransactions(method)
+            spreadsheetManager.deletePaymentMethodFromSheet(method.name)
             onResult(true, null)
         }
     }

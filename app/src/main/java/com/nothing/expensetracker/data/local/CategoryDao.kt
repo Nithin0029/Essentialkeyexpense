@@ -13,8 +13,18 @@ interface CategoryDao {
     @Query("SELECT * FROM categories WHERE syncStatus != 'Deleted' ORDER BY name ASC")
     fun getAllCategories(): Flow<List<Category>>
 
+    @Query("SELECT * FROM categories WHERE syncStatus != 'Deleted' AND usedForDebit = 1 ORDER BY name ASC")
+    fun getDebitCategories(): Flow<List<Category>>
+
+    /** Credit categories are always top-level: the subcategory hierarchy is a Debit-only concept. */
+    @Query("SELECT * FROM categories WHERE syncStatus != 'Deleted' AND usedForCredit = 1 AND parentId IS NULL ORDER BY name ASC")
+    fun getCreditCategories(): Flow<List<Category>>
+
     @Query("SELECT * FROM categories WHERE name = :name LIMIT 1")
     suspend fun getCategoryByName(name: String): Category?
+
+    @Query("SELECT * FROM categories WHERE id = :id LIMIT 1")
+    suspend fun getCategoryById(id: Long): Category?
 
     @Query("SELECT * FROM categories WHERE LOWER(name) = LOWER(:name) AND syncStatus != 'Deleted' LIMIT 1")
     suspend fun getCategoryByNameCaseInsensitive(name: String): Category?
@@ -38,6 +48,12 @@ interface CategoryDao {
 
     @Query("SELECT COUNT(*) FROM categories WHERE parentId = :parentId AND syncStatus != 'Deleted'")
     suspend fun countSubcategories(parentId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM categories WHERE syncStatus != 'Deleted' AND usedForDebit = 1")
+    suspend fun countDebitCategories(): Int
+
+    @Query("SELECT COUNT(*) FROM categories WHERE syncStatus != 'Deleted' AND usedForCredit = 1")
+    suspend fun countCreditCategories(): Int
 
     @Query("SELECT * FROM categories WHERE syncStatus != 'Synced'")
     suspend fun getUnsyncedCategories(): List<Category>

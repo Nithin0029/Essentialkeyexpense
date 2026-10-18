@@ -33,9 +33,18 @@ data class SummaryData(
 
 data class CategoryReport(
     val name: String,
+    /** Net spending: [debitAmount] minus [creditAmount]. */
     val amount: Double,
-    val percentage: Float
-)
+    val percentage: Float,
+    /** Gross spending filed under this category. */
+    val debitAmount: Double = 0.0,
+    /** Money received back under the same category (refunds, reimbursements, shared costs).
+     *  Non-zero only for a category linked across Debit and Credit. */
+    val creditAmount: Double = 0.0
+) {
+    /** True when both sides carry a value, so the UI can show how the net was reached. */
+    val isNetted: Boolean get() = creditAmount > 0.0 && debitAmount > 0.0
+}
 
 data class PaymentMethodReport(
     val method: String,
@@ -154,9 +163,18 @@ class ReportsViewModel @Inject constructor(
         var totalIncome = 0.0
         var totalExpense = 0.0
         val categoryMap = mutableMapOf<String, Double>()
+        val creditByCategory = mutableMapOf<String, Double>()
         val methodMap = mutableMapOf<String, Double>()
         var transferTotal = 0.0
         var transferCount = 0
+
+        // Categories the user has linked across both sides. Credit filed under one of these is
+        // money coming back against that category's spending (a refund, a reimbursement, a shared
+        // cost), so it's subtracted from that category below rather than left as plain income.
+        val linkedCategoryNames = repository.getCategories().first()
+            .filter { it.isLinked }
+            .map { it.name }
+            .toSet()
 
         expenses.forEach { expense ->
             val isNonSpending = TransactionConstants.isNonSpendingCategory(expense.type, expense.category)
@@ -165,6 +183,10 @@ class ReportsViewModel @Inject constructor(
                 transferCount++
             } else if (expense.type == "Credit") {
                 totalIncome += expense.amount
+                if (expense.category in linkedCategoryNames) {
+                    creditByCategory[expense.category] =
+                        creditByCategory.getOrDefault(expense.category, 0.0) + expense.amount
+                }
             } else {
                 totalExpense += expense.amount
                 categoryMap[expense.category] = categoryMap.getOrDefault(expense.category, 0.0) + expense.amount
@@ -179,9 +201,29 @@ class ReportsViewModel @Inject constructor(
             transactionCount = expenses.size
         )
 
-        val categoryReports = categoryMap.map { (name, amount) ->
-            CategoryReport(name, amount, if (totalExpense > 0) (amount / totalExpense).toFloat() else 0f)
-        }.sortedByDescending { it.amount }
+        // Net each linked category, then rebase the percentages on the netted total so the
+        // breakdown still adds up to 100%.
+        val nettedTotals = (categoryMap.keys + creditByCategory.keys).associateWith { name ->
+            val debit = categoryMap.getOrDefault(name, 0.0)
+            val credit = creditByCategory.getOrDefault(name, 0.0)
+            // A category that earned back more than it cost is clamped at zero rather than shown
+            // as negative spending, which would distort the share-of-spending bars.
+            Triple(debit, credit, (debit - credit).coerceAtLeast(0.0))
+        }
+        val nettedExpenseTotal = nettedTotals.values.sumOf { it.third }
+
+        val categoryReports = nettedTotals
+            .filter { (_, totals) -> totals.first > 0.0 }
+            .map { (name, totals) ->
+                val (debit, credit, net) = totals
+                CategoryReport(
+                    name = name,
+                    amount = net,
+                    percentage = if (nettedExpenseTotal > 0) (net / nettedExpenseTotal).toFloat() else 0f,
+                    debitAmount = debit,
+                    creditAmount = credit
+                )
+            }.sortedByDescending { it.amount }
 
         val methodReports = methodMap.map { (method, amount) ->
             PaymentMethodReport(method, amount, if (totalExpense > 0) (amount / totalExpense).toFloat() else 0f)

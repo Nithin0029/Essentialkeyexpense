@@ -32,7 +32,8 @@ class AddEditAutopayViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             if (ruleId == 0L) {
-                val firstCategory = expenseRepository.getAllCategories().first().firstOrNull() ?: "Other"
+                // New rules start as "Debit", so seed a Debit-scoped category.
+                val firstCategory = expenseRepository.getDebitCategoryNames().first().firstOrNull() ?: "Other"
                 _rule.value = AutopayRule(
                     amount = 0.0,
                     category = firstCategory,
@@ -47,7 +48,8 @@ class AddEditAutopayViewModel @Inject constructor(
     }
 
     fun getAllFriends() = expenseRepository.getAllFriends()
-    fun getAllCategories() = expenseRepository.getAllCategories()
+    fun getDebitCategories() = expenseRepository.getDebitCategoryNames()
+    fun getCreditCategories() = expenseRepository.getCreditCategoryNames()
     fun getAllPaymentMethods() = expenseRepository.getPaymentMethodNames()
 
     fun save(updatedRule: AutopayRule) {

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -68,6 +69,9 @@ fun SettingsScreen(
     val themeMode by viewModel.themeMode.collectAsState()
     val authState by viewModel.authState.collectAsState()
     val spreadsheetState by viewModel.spreadsheetState.collectAsState()
+    val restoreState by viewModel.restoreState.collectAsState()
+    val currentBankBalance by viewModel.currentBankBalance.collectAsState()
+    val currentCashBalance by viewModel.currentCashBalance.collectAsState()
     
     var showOpeningBankBalanceDialog by remember { mutableStateOf(false) }
     var showOpeningCashBalanceDialog by remember { mutableStateOf(false) }
@@ -117,6 +121,8 @@ fun SettingsScreen(
             FinancialSettingsCard(
                 openingBankBalance = openingBankBalance,
                 openingCashBalance = openingCashBalance,
+                currentBankBalance = currentBankBalance,
+                currentCashBalance = currentCashBalance,
                 onEditBank = { 
                     if (mpinEnabled) {
                         mpinVerifyReason = MpinVerifyReason.EDIT_OPENING_BANK_BALANCE
@@ -154,6 +160,8 @@ fun SettingsScreen(
             GoogleSyncSettingsCard(
                 authState = authState,
                 spreadsheetState = spreadsheetState,
+                restoreState = restoreState,
+                onRestoreNow = { viewModel.restoreFromSheet() },
                 isSyncing = viewModel.isSyncing.collectAsState().value,
                 unsyncedCount = viewModel.unsyncedCount.collectAsState().value,
                 syncedCount = viewModel.syncedCount.collectAsState().value,
@@ -206,13 +214,140 @@ fun SettingsScreen(
         }
     }
 
+    // Only surfaces when a restore actually brought something down — a no-op restore (the
+    // normal case once a device is in sync) stays silent.
+    (restoreState as? RestoreState.Done)?.summary?.takeIf { !it.isEmpty }?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { viewModel.acknowledgeRestore() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CloudDownload,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            title = { Text("Synced with Spreadsheet", color = MaterialTheme.colorScheme.onSurface) },
+            text = {
+                Column {
+                    if (summary.added > 0) {
+                        Text(
+                            "Pulled down data this device was missing:",
+                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        RestoreCountRows(
+                            listOf(
+                                "Transactions" to summary.transactions,
+                                "Categories" to summary.categories,
+                                "Friends" to summary.friends,
+                                "Budgets" to summary.budgets,
+                                "Payment methods" to summary.paymentMethods,
+                                "Autopay rules" to summary.autopayRules
+                            )
+                        )
+                    }
+                    if (summary.transactions > 0) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Your transactions are back, but this device doesn't know what your " +
+                                "accounts hold today. Set your current balance so the dashboard " +
+                                "adds up.",
+                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (summary.removed > 0) {
+                        if (summary.added > 0) Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Removed locally, because these were deleted from the spreadsheet:",
+                            color = Color.Gray,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        RestoreCountRows(
+                            listOf(
+                                "Transactions" to summary.removedTransactions,
+                                "Categories" to summary.removedCategories,
+                                "Friends" to summary.removedFriends,
+                                "Budgets" to summary.removedBudgets
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                if (summary.transactions > 0) {
+                    // Opening balances live in app storage, so a reinstall loses them while the
+                    // transactions come back from the sheet. Without this the dashboard total is
+                    // wrong by exactly the old opening balance, with nothing on screen saying so.
+                    Button(onClick = {
+                        viewModel.acknowledgeRestore()
+                        showOpeningBankBalanceDialog = true
+                    }) { Text("Set Balance") }
+                } else {
+                    Button(onClick = { viewModel.acknowledgeRestore() }) { Text("Done") }
+                }
+            },
+            dismissButton = {
+                if (summary.transactions > 0) {
+                    TextButton(onClick = { viewModel.acknowledgeRestore() }) {
+                        Text("Later", color = Color.Gray)
+                    }
+                }
+            }
+        )
+    }
+
+    (restoreState as? RestoreState.Failed)?.let { failure ->
+        AlertDialog(
+            onDismissRequest = { viewModel.acknowledgeRestore() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.CloudOff,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("Restore Failed", color = MaterialTheme.colorScheme.onSurface) },
+            text = {
+                Column {
+                    Text(
+                        "Couldn't read your spreadsheet, so nothing was changed on this device.",
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        failure.message,
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.acknowledgeRestore()
+                    viewModel.restoreFromSheet()
+                }) { Text("Retry") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.acknowledgeRestore() }) {
+                    Text("Close", color = Color.Gray)
+                }
+            }
+        )
+    }
+
     if (showOpeningBankBalanceDialog) {
         OpeningBalanceDialog(
-            title = "Opening Bank Balance",
-            initialBalance = openingBankBalance,
+            title = "Bank Balance Today",
+            explanation = "Enter what your bank account holds right now. Past transactions stay " +
+                "as they are - the opening balance is adjusted to match.",
+            initialBalance = currentBankBalance,
             onDismiss = { showOpeningBankBalanceDialog = false },
             onSave = {
-                viewModel.updateOpeningBankBalance(it)
+                viewModel.setCurrentBankBalance(it)
                 showOpeningBankBalanceDialog = false
             }
         )
@@ -220,11 +355,13 @@ fun SettingsScreen(
 
     if (showOpeningCashBalanceDialog) {
         OpeningBalanceDialog(
-            title = "Opening Cash Balance",
-            initialBalance = openingCashBalance,
+            title = "Cash in Hand Today",
+            explanation = "Enter how much cash you are holding right now. Past transactions stay " +
+                "as they are - the opening balance is adjusted to match.",
+            initialBalance = currentCashBalance,
             onDismiss = { showOpeningCashBalanceDialog = false },
             onSave = {
-                viewModel.updateOpeningCashBalance(it)
+                viewModel.setCurrentCashBalance(it)
                 showOpeningCashBalanceDialog = false
             }
         )
@@ -463,10 +600,31 @@ fun MpinVerifyDialog(
     )
 }
 
+/** Label/count rows for the restore summary dialog, skipping anything that was zero. */
+@Composable
+private fun RestoreCountRows(entries: List<Pair<String, Int>>) {
+    entries.filter { it.second > 0 }.forEach { (label, count) ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label, color = Color.Gray, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                count.toString(),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
 @Composable
 fun GoogleSyncSettingsCard(
     authState: AuthState,
     spreadsheetState: SpreadsheetState,
+    restoreState: RestoreState,
+    onRestoreNow: () -> Unit,
     isSyncing: Boolean,
     unsyncedCount: Int,
     syncedCount: Int,
@@ -597,6 +755,50 @@ fun GoogleSyncSettingsCard(
 
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
+                            // Pull-down from the spreadsheet. Runs automatically on connect; this
+                            // row exposes it manually for when the sheet was edited elsewhere.
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        enabled = restoreState !is RestoreState.Restoring,
+                                        onClick = onRestoreNow
+                                    )
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = Color.Gray,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Restore from Spreadsheet",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Pull down anything this device is missing",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                                if (restoreState is RestoreState.Restoring) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
                             // Open Spreadsheet Item
                             Row(
                                 modifier = Modifier
@@ -643,7 +845,9 @@ fun GoogleSyncSettingsCard(
                             }
                             SettingRow(label = "Sync Status", value = syncStatus)
 
-                            val syncTimeStr = lastSyncTime?.let {
+                            // takeIf { it > 0 }: the value is 0 rather than null before the first
+                            // sync, which formatted as "01 Jan 1970" instead of "Never".
+                            val syncTimeStr = lastSyncTime?.takeIf { it > 0L }?.let {
                                 java.text.SimpleDateFormat("dd MMM yyyy • hh:mm a", Locale.getDefault()).format(Date(it))
                             } ?: "Never"
                             SettingRow(label = "Last Sync", value = syncTimeStr)
@@ -653,7 +857,12 @@ fun GoogleSyncSettingsCard(
                                 onClick = onSyncNow,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(12.dp),
-                                enabled = (unsyncedCount > 0 || failedCount > 0) && !isSyncing
+                                // Not gated on unsyncedCount: payment methods, autopay rules and
+                                // opening balances have no syncStatus column, so they never appear
+                                // in that count. Gating on it meant a cycle could not be triggered
+                                // at all once transactions were settled, leaving those three
+                                // permanently unpushed.
+                                enabled = !isSyncing
                             ) {
                                 if (isSyncing) {
                                     CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
@@ -694,6 +903,8 @@ fun GoogleSyncSettingsCard(
 fun FinancialSettingsCard(
     openingBankBalance: Double,
     openingCashBalance: Double,
+    currentBankBalance: Double,
+    currentCashBalance: Double,
     onEditBank: () -> Unit,
     onEditCash: () -> Unit
 ) {
@@ -716,9 +927,13 @@ fun FinancialSettingsCard(
                 color = MaterialTheme.colorScheme.primary
             )
 
+            // The editable figure is today's balance, not the opening one: nobody knows what
+            // their account held before their first ever transaction, and after a restore the
+            // opening value is gone anyway. The opening balance shown underneath is derived.
             SettingRow(
-                label = "Opening Bank Balance",
-                value = formatCurrency(openingBankBalance),
+                label = "Bank Balance Today",
+                value = formatCurrency(currentBankBalance),
+                subtitle = "Opening: ${formatCurrency(openingBankBalance)}",
                 action = {
                     IconButton(onClick = onEditBank) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -729,8 +944,9 @@ fun FinancialSettingsCard(
             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
             SettingRow(
-                label = "Opening Cash Balance",
-                value = formatCurrency(openingCashBalance),
+                label = "Cash in Hand Today",
+                value = formatCurrency(currentCashBalance),
+                subtitle = "Opening: ${formatCurrency(openingCashBalance)}",
                 action = {
                     IconButton(onClick = onEditCash) {
                         Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
@@ -788,6 +1004,7 @@ fun SyncStatRow(
 fun SettingRow(
     label: String,
     value: String,
+    subtitle: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
     Row(
@@ -798,6 +1015,9 @@ fun SettingRow(
         Column {
             Text(text = label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             Text(text = value, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Medium)
+            if (subtitle != null) {
+                Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            }
         }
         action?.invoke()
     }
@@ -807,6 +1027,7 @@ fun SettingRow(
 fun OpeningBalanceDialog(
     title: String,
     initialBalance: Double,
+    explanation: String? = null,
     onDismiss: () -> Unit,
     onSave: (Double) -> Unit
 ) {
@@ -816,18 +1037,28 @@ fun OpeningBalanceDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
-            OutlinedTextField(
-                value = balanceText,
-                onValueChange = { if (it.isEmpty() || (it.toDoubleOrNull() != null)) balanceText = it },
-                label = { Text("Amount") },
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = Color.DarkGray,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            Column {
+                if (explanation != null) {
+                    Text(
+                        text = explanation,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                OutlinedTextField(
+                    value = balanceText,
+                    onValueChange = { if (it.isEmpty() || (it.toDoubleOrNull() != null)) balanceText = it },
+                    label = { Text("Amount") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color.DarkGray,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
                 )
-            )
+            }
         },
         confirmButton = {
             Button(
@@ -877,7 +1108,9 @@ fun AboutCard() {
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "Version 3.5.0",
+                // Read from BuildConfig rather than hardcoded: this said 3.5.0 on a 3.6.0 build,
+                // because the literal was never updated alongside the version bump.
+                text = "Version ${com.nothing.expensetracker.BuildConfig.VERSION_NAME}",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )

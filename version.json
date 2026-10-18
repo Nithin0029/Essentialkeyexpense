@@ -1,15 +1,16 @@
 {
-  "versionCode": 350,
-  "versionName": "3.5.0",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.5.0/EssentialExpenseTracker-v3.5.0.apk",
+  "versionCode": 360,
+  "versionName": "3.6.0",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.6.0/EssentialExpenseTracker-v3.6.0.apk",
   "releaseNotes": [
-    "Improved friend transaction workflow",
-    "Added RAS (Return As Something) settlement",
-    "Improved widget synchronization",
-    "Fixed budget UI refresh issues",
-    "Added duplicate validation for friends and categories",
-    "Improved Google Sheets synchronization",
-    "Various bug fixes and performance improvements"
+    "IMPORTANT: signing key changed - uninstall the old app before installing this one",
+    "Sign in to Google after installing to restore your data from the spreadsheet",
+    "Credit categories can now be added, renamed and deleted",
+    "Link a category across Debit and Credit (e.g. Home) to net its two sides in Reports",
+    "Google Sheets sync now works both ways and restores a device on sign-in",
+    "Transaction descriptions are now included in the spreadsheet",
+    "Fixed the in-app updater, which could never reach version.json",
+    "Budgets no longer offer credit-only categories"
   ],
-  "mandatory": false
+  "forceUpdate": false
 }

@@ -60,7 +60,8 @@ fun AddEditAutopayScreen(
         containerColor = Color.Black
     ) { paddingValues ->
         val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
-        val categories by viewModel.getAllCategories().collectAsState(initial = emptyList())
+        val categories by viewModel.getDebitCategories().collectAsState(initial = emptyList())
+        val creditCategories by viewModel.getCreditCategories().collectAsState(initial = emptyList())
         val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
 
         ruleState?.let { rule ->
@@ -69,6 +70,7 @@ fun AddEditAutopayScreen(
                 rule = rule,
                 friends = friends,
                 categories = categories,
+                creditCategories = creditCategories,
                 paymentMethods = paymentMethods,
                 onSave = { viewModel.save(it) },
                 onCancel = onNavigateBack,
@@ -87,6 +89,7 @@ private fun AutopayForm(
     rule: AutopayRule,
     friends: List<String>,
     categories: List<String>,
+    creditCategories: List<String>,
     paymentMethods: List<String>,
     onSave: (AutopayRule) -> Unit,
     onCancel: () -> Unit,
@@ -103,8 +106,9 @@ private fun AutopayForm(
     var isActive by remember { mutableStateOf(rule.isActive) }
 
     val types = TransactionConstants.TRANSACTION_TYPES
-    val creditCategories = TransactionConstants.CREDIT_CATEGORIES
-    val currentCategories = if (type == "Credit") creditCategories else categories
+    val availableCreditCategories =
+        creditCategories.ifEmpty { TransactionConstants.FALLBACK_CREDIT_CATEGORIES }
+    val currentCategories = if (type == "Credit") availableCreditCategories else categories
     val isFriendCategory = TransactionConstants.isFriendCategory(type, category)
     val methods = TransactionConstants.getAvailableMethods(type, category, paymentMethods)
 
@@ -214,7 +218,7 @@ private fun AutopayForm(
                         onClick = {
                             if (type != t) {
                                 type = t
-                                category = TransactionConstants.getInitialCategory(t, categories)
+                                category = TransactionConstants.getInitialCategory(t, categories, availableCreditCategories)
                                 if (paymentMethod == "RAS") paymentMethod = "UPI"
                             }
                             typeExpanded = false

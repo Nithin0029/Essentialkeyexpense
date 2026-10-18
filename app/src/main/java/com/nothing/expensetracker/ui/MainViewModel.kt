@@ -58,6 +58,33 @@ class MainViewModel @Inject constructor(
     private val _selectedYear = MutableStateFlow(SimpleDateFormat("yyyy", Locale.getDefault()).format(Date()))
     val selectedYear: StateFlow<String> = _selectedYear
 
+    /** True until the user has been asked for their starting balances, once per install. */
+    val needsBalanceSetup: StateFlow<Boolean> = appPrefs.hasSetUpBalances
+        .map { !it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /**
+     * Records the balances the user is holding right now.
+     *
+     * Solves for the opening balance rather than storing the figure directly, so the number is
+     * correct whether this is a brand-new install with no transactions (where the two are the
+     * same) or one that has just restored a history from the spreadsheet.
+     */
+    fun completeBalanceSetup(bankNow: Double, cashNow: Double) {
+        viewModelScope.launch {
+            val bankCredits = repository.getTotalUpiBankCredits().first() ?: 0.0
+            val bankDebits = repository.getTotalUpiBankDebits().first() ?: 0.0
+            val cashCredits = repository.getTotalCashCredits().first() ?: 0.0
+            val cashDebits = repository.getTotalCashDebits().first() ?: 0.0
+            appPrefs.setOpeningBankBalance(bankNow - (bankCredits - bankDebits))
+            appPrefs.setOpeningCashBalance(cashNow - (cashCredits - cashDebits))
+            appPrefs.markBalancesSetUp()
+        }
+    }
+
+    /** Dismissed without entering anything; the prompt should not return. */
+    fun skipBalanceSetup() = appPrefs.markBalancesSetUp()
+
     init {
         viewModelScope.launch {
             try {
@@ -131,6 +158,15 @@ class MainViewModel @Inject constructor(
             var weekSpending = 0.0
             var monthSpending = 0.0
             val categoryMap = mutableMapOf<String, Double>()
+            val creditByCategory = mutableMapOf<String, Double>()
+
+            // Credit filed under a category linked across both sides (e.g. "Home") is money
+            // coming back against that category, so the breakdown below nets it off — matching
+            // how Reports presents the same figures.
+            val linkedCategoryNames = repository.getCategories().first()
+                .filter { it.isLinked }
+                .map { it.name }
+                .toSet()
 
             allExpenses.forEach { expense ->
                 val amount = expense.amount
@@ -157,6 +193,10 @@ class MainViewModel @Inject constructor(
                 } else {
                     if (!isTransfer && isThisMonth) {
                         income += amount
+                        if (expense.category in linkedCategoryNames) {
+                            creditByCategory[expense.category] =
+                                creditByCategory.getOrDefault(expense.category, 0.0) + amount
+                        }
                     }
                 }
             }
@@ -167,7 +207,13 @@ class MainViewModel @Inject constructor(
             val totalAssets = bankBalance + cashBalance
 
             // 7. Category Breakdown
-            val topCategories = categoryMap.map { (cat, total) -> CategoryExpense(cat, total) }
+            val topCategories = categoryMap
+                .map { (cat, total) ->
+                    // Clamped at zero: a category that earned back more than it cost shouldn't
+                    // render as a negative slice of spending.
+                    CategoryExpense(cat, (total - creditByCategory.getOrDefault(cat, 0.0)).coerceAtLeast(0.0))
+                }
+                .filter { it.totalAmount > 0.0 }
                 .sortedByDescending { it.totalAmount }
                 .take(5)
 

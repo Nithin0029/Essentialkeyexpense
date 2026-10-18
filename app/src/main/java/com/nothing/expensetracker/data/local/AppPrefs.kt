@@ -53,14 +53,38 @@ class AppPrefs @Inject constructor(
     }
 
     private fun getOpeningBankBalance(): Double {
-        // Migration: check new key, fallback to old key, then default
         if (prefs.contains("opening_bank_balance")) {
             return prefs.getFloat("opening_bank_balance", 0f).toDouble()
         }
-        val oldBalance = prefs.getFloat("opening_balance", 15000.0f).toDouble()
-        // Save to new key for future
-        prefs.edit().putFloat("opening_bank_balance", oldBalance.toFloat()).apply()
-        return oldBalance
+        // Migrate from the pre-split key only when it genuinely exists. This used to fall through
+        // to a hardcoded 15000 default, so every fresh install began with a phantom balance it
+        // then persisted; a new install must start at zero.
+        if (prefs.contains("opening_balance")) {
+            val oldBalance = prefs.getFloat("opening_balance", 0f).toDouble()
+            prefs.edit().putFloat("opening_bank_balance", oldBalance.toFloat()).apply()
+            return oldBalance
+        }
+        return 0.0
+    }
+
+    /**
+     * Whether the user has been asked for their starting balances.
+     *
+     * Set once the prompt is answered or dismissed, so a fresh install asks exactly one time.
+     * Setting a balance anywhere else (Settings, the post-restore prompt) also marks it done.
+     */
+    private val _hasSetUpBalances = MutableStateFlow(
+        // An install upgrading from a version before this flag existed has already configured its
+        // balances, so the presence of a stored value counts as having been asked.
+        prefs.getBoolean(KEY_BALANCES_SET_UP, false) ||
+            prefs.contains("opening_bank_balance") ||
+            prefs.contains("opening_cash_balance")
+    )
+    val hasSetUpBalances: StateFlow<Boolean> = _hasSetUpBalances.asStateFlow()
+
+    fun markBalancesSetUp() {
+        prefs.edit().putBoolean(KEY_BALANCES_SET_UP, true).apply()
+        _hasSetUpBalances.value = true
     }
 
     fun setOpeningCashBalance(balance: Double) {
@@ -83,5 +107,9 @@ class AppPrefs @Inject constructor(
 
     private fun getSpreadsheetId(): String? {
         return syncPrefs.getString("spreadsheet_id", null)
+    }
+
+    private companion object {
+        const val KEY_BALANCES_SET_UP = "balances_set_up"
     }
 }

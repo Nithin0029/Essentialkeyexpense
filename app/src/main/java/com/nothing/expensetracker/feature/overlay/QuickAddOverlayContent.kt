@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 fun QuickAddOverlayContent(
     initialColor: String,
     debitCategories: List<String>,
+    creditCategories: List<String>,
     friends: List<String>,
     paymentMethods: List<String>,
     onSaveExpense: (
@@ -46,14 +47,17 @@ fun QuickAddOverlayContent(
     var notes by remember { mutableStateOf("") }
     var friendIdText by remember { mutableStateOf("") }
 
+    val availableCreditCategories =
+        creditCategories.ifEmpty { com.nothing.expensetracker.ui.history.TransactionConstants.FALLBACK_CREDIT_CATEGORIES }
+
     LaunchedEffect(debitCategories) {
         if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
-            selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(transactionType, debitCategories)
+            selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(transactionType, debitCategories, availableCreditCategories)
         }
     }
 
     val currentCategories = if (transactionType == "Credit") {
-        com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
+        availableCreditCategories
     } else {
         debitCategories
     }
@@ -125,7 +129,7 @@ fun QuickAddOverlayContent(
                         onClick = { 
                             if (transactionType != "Debit") {
                                 transactionType = "Debit"
-                                selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories)
+                                selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories, availableCreditCategories)
                                 if (paymentMethod == "RAS") paymentMethod = "UPI"
                             }
                         },
@@ -141,7 +145,7 @@ fun QuickAddOverlayContent(
                         onClick = { 
                             if (transactionType != "Credit") {
                                 transactionType = "Credit"
-                                selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories)
+                                selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories, availableCreditCategories)
                                 if (paymentMethod == "RAS") paymentMethod = "UPI"
                             }
                         },

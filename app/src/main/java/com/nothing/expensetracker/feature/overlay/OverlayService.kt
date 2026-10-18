@@ -138,13 +138,15 @@ class OverlayService : android.app.Service(), ViewModelStoreOwner, SavedStateReg
                 setViewTreeSavedStateRegistryOwner(this@OverlayService)
 
                 setContent {
-                    val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
+                    val debitCategories by repository.getDebitCategoryNames().collectAsState(initial = emptyList())
+                    val creditCategories by repository.getCreditCategoryNames().collectAsState(initial = emptyList())
                     val friends by repository.getAllFriends().collectAsState(initial = emptyList())
                     val paymentMethods by repository.getPaymentMethodNames().collectAsState(initial = emptyList())
 
                     QuickAddOverlayContent(
                         initialColor = color,
                         debitCategories = debitCategories,
+                        creditCategories = creditCategories,
                         friends = friends,
                         paymentMethods = paymentMethods,
                         onSaveExpense = { amount, description, category, type, paymentMethod, friendId, notes ->

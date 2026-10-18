@@ -47,7 +47,9 @@ class BudgetViewModel @Inject constructor(
         repository.getOverallBudget(currentMonth, currentYear),
         repository.getCategoryBudgets(currentMonth, currentYear),
         repository.getAllExpenses(),
-        repository.getAllCategories()
+        // Budgets cap spending, so only Debit categories can carry one — a Credit-only category
+        // like "Salary" has no spending to limit.
+        repository.getDebitCategoryNames()
     ) { overallBudget, categoryBudgets, allExpenses, categories ->
         
         val monthExpenses = allExpenses.filter { expense ->

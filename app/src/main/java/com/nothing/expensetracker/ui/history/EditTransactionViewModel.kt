@@ -41,8 +41,9 @@ class EditTransactionViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             if (expenseId == 0L) {
+                // New transactions start as "Debit", so seed a Debit-scoped category.
                 val firstCategory = repository.getCategories().first()
-                    .firstOrNull { it.parentId == null }?.name ?: "Other"
+                    .firstOrNull { it.parentId == null && it.usedForDebit }?.name ?: "Other"
                 _expense.value = Expense(
                     amount = 0.0,
                     description = "",

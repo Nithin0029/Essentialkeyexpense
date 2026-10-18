@@ -1,8 +1,11 @@
 package com.nothing.expensetracker.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -12,6 +15,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.SubdirectoryArrowRight
@@ -26,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.Category
+import com.nothing.expensetracker.data.repository.ExpenseRepository
 import com.nothing.expensetracker.util.getCategoryIcon
 import kotlinx.coroutines.launch
 
@@ -39,6 +46,8 @@ fun CategoryManagementScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var subcategoryParent by remember { mutableStateOf<Category?>(null) }
+    var categoryToRename by remember { mutableStateOf<Category?>(null) }
+    var categoryToUnlink by remember { mutableStateOf<Category?>(null) }
     var expandedParentIds by remember { mutableStateOf(setOf<Long>()) }
 
     // Deletion Flow State
@@ -54,7 +63,7 @@ fun CategoryManagementScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Categories", fontWeight = FontWeight.Bold) },
+                title = { Text("${uiState.scope.label} Categories", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -86,8 +95,13 @@ fun CategoryManagementScreen(
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp)
         ) {
-            if (uiState.categories.isEmpty() && !uiState.isLoading) {
-                EmptyCategoriesState()
+            CategoryScopeTabs(
+                selected = uiState.scope,
+                onSelect = { viewModel.setScope(it) }
+            )
+
+            if (uiState.topLevelCategories.isEmpty() && !uiState.isLoading) {
+                EmptyCategoriesState(uiState.scope)
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
@@ -103,6 +117,7 @@ fun CategoryManagementScreen(
                         Column {
                             CategoryItem(
                                 category = category,
+                                scope = uiState.scope,
                                 subcategoryCount = subcategories.size,
                                 expanded = expanded,
                                 onToggleExpand = {
@@ -113,6 +128,8 @@ fun CategoryManagementScreen(
                                     }
                                 },
                                 onAddSubcategoryClick = { subcategoryParent = category },
+                                onEditClick = { categoryToRename = category },
+                                onUnlinkClick = { categoryToUnlink = category },
                                 onDeleteClick = { categoryToDelete = category }
                             )
                             if (expanded) {
@@ -123,6 +140,7 @@ fun CategoryManagementScreen(
                                     subcategories.forEach { subcategory ->
                                         SubcategoryItem(
                                             category = subcategory,
+                                            onEditClick = { categoryToRename = subcategory },
                                             onDeleteClick = { categoryToDelete = subcategory }
                                         )
                                     }
@@ -137,11 +155,76 @@ fun CategoryManagementScreen(
 
     if (showAddDialog) {
         CategoryDialog(
-            title = "Add Category",
+            title = "Add ${uiState.scope.label} Category",
+            // Categories that exist on the other side can be linked in one tap instead of retyped.
+            linkCandidates = uiState.linkableCandidates(),
+            onLinkCandidateClick = { candidate ->
+                viewModel.linkExistingCategory(candidate) { _, message ->
+                    showAddDialog = false
+                    message?.let { scope.launch { snackbarHostState.showSnackbar(it) } }
+                }
+            },
             onDismiss = { showAddDialog = false },
             onConfirm = { name, onResult ->
-                viewModel.addCategory(name = name, onResult = onResult)
+                viewModel.addCategory(name = name) { success, message ->
+                    // On success `message` is the "linked to your existing ..." note, if any.
+                    if (success && message != null) {
+                        scope.launch { snackbarHostState.showSnackbar(message) }
+                    }
+                    onResult(success, message)
+                }
             }
+        )
+    }
+
+    categoryToRename?.let { target ->
+        CategoryDialog(
+            title = "Rename \"${target.name}\"",
+            initialName = target.name,
+            confirmLabel = "Rename",
+            // A linked category is a single row, so renaming it renames both sides at once.
+            helperText = if (target.isLinked) {
+                "\"${target.name}\" is linked across Debit and Credit — renaming updates both."
+            } else null,
+            onDismiss = { categoryToRename = null },
+            onConfirm = { name, onResult ->
+                viewModel.updateCategory(target, name) { success, message ->
+                    if (success) categoryToRename = null
+                    onResult(success, message)
+                }
+            }
+        )
+    }
+
+    categoryToUnlink?.let { target ->
+        val otherSide = if (uiState.scope == CategoryScope.DEBIT) "Credit" else "Debit"
+        AlertDialog(
+            onDismissRequest = { categoryToUnlink = null },
+            title = { Text("Unlink from ${uiState.scope.label}", color = Color.White) },
+            text = {
+                Text(
+                    "\"${target.name}\" will stop appearing in ${uiState.scope.label} transactions " +
+                        "and stay a $otherSide category. Its totals will no longer be netted in Reports.",
+                    color = Color.White
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.removeFromScope(target) { _, message ->
+                        categoryToUnlink = null
+                        message?.let { scope.launch { snackbarHostState.showSnackbar(it) } }
+                    }
+                }) {
+                    Text("Unlink")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { categoryToUnlink = null }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF1E1E1E),
+            shape = RoundedCornerShape(20.dp)
         )
     }
 
@@ -367,15 +450,48 @@ fun CategoryManagementScreen(
     }
 }
 
+/** Switches the list between the Debit and Credit sides of the ledger. */
+@Composable
+fun CategoryScopeTabs(
+    selected: CategoryScope,
+    onSelect: (CategoryScope) -> Unit
+) {
+    PrimaryTabRow(
+        selectedTabIndex = selected.ordinal,
+        containerColor = Color.Black,
+        contentColor = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(bottom = 12.dp)
+    ) {
+        CategoryScope.entries.forEach { scope ->
+            Tab(
+                selected = scope == selected,
+                onClick = { onSelect(scope) },
+                text = {
+                    Text(
+                        text = scope.label,
+                        fontWeight = if (scope == selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                },
+                selectedContentColor = MaterialTheme.colorScheme.primary,
+                unselectedContentColor = Color.Gray
+            )
+        }
+    }
+}
+
 @Composable
 fun CategoryItem(
     category: Category,
+    scope: CategoryScope,
     subcategoryCount: Int,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     onAddSubcategoryClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onUnlinkClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
+    val isProtected = category.name in ExpenseRepository.PROTECTED_CATEGORIES
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -430,6 +546,32 @@ fun CategoryItem(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
+                        if (category.isLinked) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Link,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Linked",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
                         if (subcategoryCount > 0) {
                             Text(
                                 text = "  $subcategoryCount subcategor${if (subcategoryCount == 1) "y" else "ies"}",
@@ -449,16 +591,39 @@ fun CategoryItem(
                 }
             }
 
-            IconButton(onClick = onAddSubcategoryClick) {
+            // Subcategories are a Debit-only concept, so the control is hidden on the Credit tab.
+            if (scope == CategoryScope.DEBIT) {
+                IconButton(onClick = onAddSubcategoryClick) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Subcategory",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            IconButton(onClick = onEditClick) {
                 Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Subcategory",
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Rename",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }
 
-            if (category.name != "Friends") {
+            if (category.isLinked && !isProtected) {
+                IconButton(onClick = onUnlinkClick) {
+                    Icon(
+                        imageVector = Icons.Default.LinkOff,
+                        contentDescription = "Unlink from ${scope.label}",
+                        tint = Color.Gray,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            if (!isProtected) {
                 IconButton(onClick = onDeleteClick) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -484,6 +649,7 @@ fun CategoryItem(
 @Composable
 fun SubcategoryItem(
     category: Category,
+    onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(
@@ -512,6 +678,14 @@ fun SubcategoryItem(
                     color = Color.White
                 )
             }
+            IconButton(onClick = onEditClick, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Rename",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             IconButton(onClick = onDeleteClick, modifier = Modifier.size(32.dp)) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -525,7 +699,7 @@ fun SubcategoryItem(
 }
 
 @Composable
-fun EmptyCategoriesState() {
+fun EmptyCategoriesState(scope: CategoryScope) {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -539,22 +713,28 @@ fun EmptyCategoriesState() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "No Categories Found",
+            text = "No ${scope.label} Categories",
             style = MaterialTheme.typography.titleMedium,
             color = Color.White
         )
         Text(
-            text = "Pull to refresh or add a custom one.",
+            text = "Tap + to add one.",
             style = MaterialTheme.typography.bodyMedium,
             color = Color.Gray
         )
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CategoryDialog(
     title: String,
     initialName: String = "",
+    confirmLabel: String = "Save",
+    helperText: String? = null,
+    /** Categories on the other side of the ledger that can be linked in instead of retyped. */
+    linkCandidates: List<Category> = emptyList(),
+    onLinkCandidateClick: (Category) -> Unit = {},
     onDismiss: () -> Unit,
     onConfirm: (String, (Boolean, String?) -> Unit) -> Unit
 ) {
@@ -589,6 +769,58 @@ fun CategoryDialog(
                         modifier = Modifier.padding(top = 4.dp, start = 4.dp)
                     )
                 }
+                if (helperText != null) {
+                    Text(
+                        text = helperText,
+                        color = Color.Gray,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 8.dp, start = 4.dp)
+                    )
+                }
+                if (linkCandidates.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Or link an existing category",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "It stays one category, and its two sides are netted in Reports.",
+                        style = MaterialTheme.typography.labelSmall,
+                        // Gray, not DarkGray: this dialog sits on a hardcoded #1E1E1E surface,
+                        // against which DarkGray is barely legible.
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        linkCandidates.forEach { candidate ->
+                            // Colours are set explicitly rather than inherited: this dialog
+                            // hardcodes a dark surface, so the chip's default onSurface label
+                            // would be dark-on-dark while the app theme is light.
+                            AssistChip(
+                                onClick = { onLinkCandidateClick(candidate) },
+                                label = { Text(candidate.name, color = Color.White) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Link,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = Color.White.copy(alpha = 0.06f),
+                                    labelColor = Color.White,
+                                    leadingIconContentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                )
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -603,7 +835,7 @@ fun CategoryDialog(
                     }
                 }
             ) {
-                Text("Save")
+                Text(confirmLabel)
             }
         },
         dismissButton = {

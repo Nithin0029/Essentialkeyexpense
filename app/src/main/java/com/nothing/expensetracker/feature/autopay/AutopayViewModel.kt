@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.nothing.expensetracker.sync.SpreadsheetManager
 import javax.inject.Inject
 
 data class AutopayListUiState(
@@ -19,7 +20,8 @@ data class AutopayListUiState(
 
 @HiltViewModel
 class AutopayViewModel @Inject constructor(
-    private val repository: AutopayRepository
+    private val repository: AutopayRepository,
+    private val spreadsheetManager: SpreadsheetManager
 ) : ViewModel() {
 
     val uiState: StateFlow<AutopayListUiState> = repository.getAllAutopayRules()
@@ -35,6 +37,8 @@ class AutopayViewModel @Inject constructor(
     fun deleteRule(rule: AutopayRule) {
         viewModelScope.launch {
             repository.deleteAutopayRule(rule)
+            // No syncStatus on autopay rules either, so push the removal immediately.
+            spreadsheetManager.deleteAutopayRuleFromSheet(rule.id)
         }
     }
 

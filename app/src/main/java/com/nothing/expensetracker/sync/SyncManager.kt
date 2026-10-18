@@ -151,6 +151,23 @@ class SyncManager @Inject constructor(
             Log.e(tag, "[SYNC] TRANSACTION | Loop Error", e)
         }
         
+        // Opening balances are preference-backed rather than rows in a table, so no unsynced
+        // queue covers them. Push on every cycle to keep the Settings tab honest.
+        try {
+            spreadsheetManager.syncOpeningBalancesToSheet()
+        } catch (e: Exception) {
+            Log.e(tag, "[SYNC] SETTINGS | Failed to push opening balances", e)
+        }
+
+        // Payment methods and autopay rules have no syncStatus column, so there is no queue of
+        // pending changes to drain - the whole set is pushed each cycle instead.
+        try {
+            spreadsheetManager.syncPaymentMethodsToSheet()
+            spreadsheetManager.syncAutopayRulesToSheet()
+        } catch (e: Exception) {
+            Log.e(tag, "[SYNC] Failed to push payment methods / autopay rules", e)
+        }
+
         Log.i(tag, "[SYNC] Global sync cycle completed")
     }
 }
