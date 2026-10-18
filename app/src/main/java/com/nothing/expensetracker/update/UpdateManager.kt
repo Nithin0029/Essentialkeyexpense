@@ -12,4 +12,11 @@ class UpdateManager @Inject constructor(
     fun startDownload(versionInfo: VersionInfo) {
         apkDownloader.downloadApk(versionInfo.apkUrl, versionInfo.versionName)
     }
+
+    /** Why an update could not proceed, so the UI can explain rather than appear to do nothing. */
+    val problem = apkDownloader.problem
+
+    fun clearProblem() = apkDownloader.clearProblem()
+
+    fun installPermissionIntent() = apkDownloader.installPermissionIntent()
 }

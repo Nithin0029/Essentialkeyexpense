@@ -33,6 +33,16 @@ fun DashboardScreen(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val needsBalanceSetup by viewModel.needsBalanceSetup.collectAsState()
+
+    // Shown once per install, over whichever dashboard state is rendering. The dashboard is the
+    // first screen past the MPIN gate, so this is the earliest point the user can be asked.
+    if (needsBalanceSetup) {
+        InitialBalanceDialog(
+            onConfirm = { bankNow, cashNow -> viewModel.completeBalanceSetup(bankNow, cashNow) },
+            onSkip = { viewModel.skipBalanceSetup() }
+        )
+    }
 
     when (val state = uiState) {
         is DashboardUiState.Loading -> {

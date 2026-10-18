@@ -96,6 +96,18 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * Splits the category list across the two sides of the ledger. Every pre-existing category was
+     * a Debit category, so [usedForDebit] defaults to 1; the Credit flags are switched on by
+     * `seedDefaultCategories()` at startup, which also creates the Credit-only defaults.
+     */
+    private val MIGRATION_15_16 = object : Migration(15, 16) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE categories ADD COLUMN usedForDebit INTEGER NOT NULL DEFAULT 1")
+            db.execSQL("ALTER TABLE categories ADD COLUMN usedForCredit INTEGER NOT NULL DEFAULT 0")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -104,7 +116,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "essential_expense_db"
         )
-        .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+        .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
         .fallbackToDestructiveMigration()
         .build()
     }

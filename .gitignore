@@ -17,7 +17,6 @@ gradle-app.setting
 *.ipr
 *.ids
 .shelf/
-capture.png
 
 # Kotlin
 .kotlin/
@@ -30,7 +29,7 @@ local.properties
 *.keystore
 *.pk8
 *.pem
-cert.der
+*.p8
 keystore.properties
 key.properties
 signing.properties
@@ -65,24 +64,47 @@ captures/
 # Firebase / Google Services
 app/google-services.json
 
-# Service Accounts / Keys
-# Ignore all JSON files by default for safety (service accounts, etc.)
-# but un-ignore critical application config files.
+# ---------------------------------------------------------------------------
+# Secrets
+#
+# .gitignore is LAST-MATCH-WINS, so ordering matters: the broad catch-all comes
+# first, then the specific files that must be tracked, then a final re-ignore of
+# anything that must never be committed regardless of what came before.
+# ---------------------------------------------------------------------------
+
+# Catch-all: assume any JSON is a service account or config dump until proven otherwise.
 *.json
+
+# Project files that must be tracked (checked in and safe - no credentials).
 !version.json
 !google-services.template.json
 
-# AI Assistant Artifacts
-.artifacts/
-.claude/settings.local.json
-.claude/launch.json
-
-# Environment / secrets
+# Environment and credential files, in any directory.
 .env
-.env.local
+.env.*
+**/secrets.properties
+**/secrets.xml
+**/api_keys.xml
+**/service-account*.json
+**/credentials*.json
+*.p12
+*.pfx
+*.der
+
+# Final word: these must never be committed, whatever any rule above says.
+# Listed last so no negation can re-expose them.
+**/google-services.json
+**/google-services*.json
+.firebase/
+**/*.jks
+**/*.keystore
+**/keystore.properties
+**/local.properties
 
 # Others
 *.tmp
 *.bak
 *.swp
 *~
+
+KNOWN_ISSUES.md

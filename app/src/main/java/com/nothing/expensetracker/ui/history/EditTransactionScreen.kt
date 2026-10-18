@@ -122,11 +122,14 @@ fun EditTransactionContent(
     var timestamp by remember { mutableLongStateOf(expense.timestamp) }
 
     val types = TransactionConstants.TRANSACTION_TYPES
-    val creditCategories = TransactionConstants.CREDIT_CATEGORIES
 
-    // Only Debit categories carry a hierarchy — Credit's category list is a small fixed set
-    // (Salary/Refund/etc.) with no need for subcategories.
-    val topLevelDebitCategories = categories.filter { it.parentId == null }
+    // Both lists come from the same `categories` table, split by scope. A category flagged for
+    // both sides (e.g. "Home") is one row and so appears in both lists — that's what links them.
+    // Only Debit categories carry a hierarchy; Credit has no subcategories.
+    val topLevelDebitCategories = categories.filter { it.parentId == null && it.usedForDebit }
+    val creditCategories = categories.filter { it.parentId == null && it.usedForCredit }
+        .map { it.name }
+        .ifEmpty { TransactionConstants.FALLBACK_CREDIT_CATEGORIES }
     val categoryByName = categories.associateBy { it.name }
     val currentCategories = if (type == "Credit") creditCategories else topLevelDebitCategories.map { it.name }
 
@@ -250,7 +253,11 @@ fun EditTransactionContent(
                         onClick = {
                             if (type != t) {
                                 type = t
-                                category = TransactionConstants.getInitialCategory(t, topLevelDebitCategories.map { it.name })
+                                category = TransactionConstants.getInitialCategory(
+                                    t,
+                                    topLevelDebitCategories.map { it.name },
+                                    creditCategories
+                                )
                                 // Reset payment method if RAS was selected but is no longer valid
                                 if (paymentMethod == "RAS") {
                                     paymentMethod = "UPI"

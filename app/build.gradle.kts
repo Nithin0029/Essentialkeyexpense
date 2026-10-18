@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,6 +7,17 @@ plugins {
     alias(libs.plugins.ksp)
     id("com.google.gms.google-services")
 }
+
+// Release signing credentials are read from keystore.properties in the project root, which is
+// gitignored and never committed. Create it from keystore.properties.example and fill in your
+// own values. Without that file the release build still compiles, but comes out unsigned.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use { load(it) }
+    }
+}
+val hasReleaseSigning = keystoreProperties.getProperty("storeFile") != null
 
 android {
     namespace = "com.nothing.expensetracker"
@@ -14,16 +27,36 @@ android {
         applicationId = "com.nothing.expensetracker"
         minSdk = 26
         targetSdk = 37
-        versionCode = 350
-        versionName = "3.5.0"
+        versionCode = 360
+        versionName = "3.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             optimization {
                 enable = false
+            }
+            // Opt-in local verification build: `-PverifyBuild` produces a release APK that is
+            // debuggable, so its database can be inspected with `adb run-as` while still using
+            // the real applicationId and signing key that Google Sign-In requires. Off by default
+            // and never passed for a published release - a debuggable release APK exposes app
+            // data on any device it is installed on.
+            isDebuggable = project.hasProperty("verifyBuild")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
             }
         }
         debug {

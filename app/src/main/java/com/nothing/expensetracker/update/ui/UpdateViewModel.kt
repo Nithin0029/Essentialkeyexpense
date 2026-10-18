@@ -56,6 +56,13 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
+    /** Surfaces a blocked update: missing install permission, or a download that never arrived. */
+    val updateProblem = updateManager.problem
+
+    fun clearProblem() = updateManager.clearProblem()
+
+    fun installPermissionIntent() = updateManager.installPermissionIntent()
+
     fun dismissDialog() {
         _uiState.value = _uiState.value.copy(showDialog = false)
     }

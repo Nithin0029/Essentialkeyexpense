@@ -52,17 +52,20 @@ class QuickAddShortcutActivity : ComponentActivity() {
             var friendExpanded by remember { mutableStateOf(false) }
 
             val friends by repository.getAllFriends().collectAsState(initial = emptyList())
-            val debitCategories by repository.getAllCategories().collectAsState(initial = emptyList())
+            val debitCategories by repository.getDebitCategoryNames().collectAsState(initial = emptyList())
+            val creditCategories by repository.getCreditCategoryNames().collectAsState(initial = emptyList())
+            val availableCreditCategories =
+                creditCategories.ifEmpty { com.nothing.expensetracker.ui.history.TransactionConstants.FALLBACK_CREDIT_CATEGORIES }
             val userPaymentMethods by repository.getPaymentMethodNames().collectAsState(initial = emptyList())
 
             LaunchedEffect(debitCategories) {
                 if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
-                    selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(selectedType, debitCategories)
+                    selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(selectedType, debitCategories, availableCreditCategories)
                 }
             }
 
             val currentCategories = if (selectedType == "Credit") {
-                com.nothing.expensetracker.ui.history.TransactionConstants.CREDIT_CATEGORIES
+                availableCreditCategories
             } else {
                 debitCategories
             }
@@ -108,7 +111,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                 onClick = { 
                                     if (selectedType != "Debit") {
                                         selectedType = "Debit"
-                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories)
+                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories, availableCreditCategories)
                                         if (selectedMethod == "RAS") selectedMethod = "UPI"
                                     }
                                 },
@@ -119,7 +122,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                 onClick = { 
                                     if (selectedType != "Credit") {
                                         selectedType = "Credit"
-                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories)
+                                        selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories, availableCreditCategories)
                                         if (selectedMethod == "RAS") selectedMethod = "UPI"
                                     }
                                 },

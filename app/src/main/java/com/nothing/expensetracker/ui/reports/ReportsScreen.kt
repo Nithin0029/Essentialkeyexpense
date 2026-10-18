@@ -377,13 +377,25 @@ fun CategoryBreakdownSection(reports: List<CategoryReport>) {
                             .clip(CircleShape)
                             .background(categoryChartColors[index % categoryChartColors.size])
                     )
+
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = report.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = report.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        // For a category linked across Debit and Credit, show how the net was
+                        // reached so the smaller headline figure isn't mistaken for missing data.
+                        if (report.isNetted) {
+                            Text(
+                                text = "${formatCurrency(report.debitAmount)} spent − " +
+                                    "${formatCurrency(report.creditAmount)} received",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
                     Text(
                         text = formatCurrency(report.amount),
                         style = MaterialTheme.typography.bodyMedium,

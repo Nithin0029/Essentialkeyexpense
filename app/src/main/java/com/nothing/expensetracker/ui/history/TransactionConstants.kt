@@ -3,10 +3,22 @@ package com.nothing.expensetracker.ui.history
 object TransactionConstants {
     val TRANSACTION_TYPES = listOf("Debit", "Credit")
     val STANDARD_METHODS = listOf("UPI", "Cash", "Bank")
-    val CREDIT_CATEGORIES = listOf("Salary", "Friend", "Transfer", "Refund", "Investment Return", "Other")
+    /**
+     * Credit categories now live in the `categories` table alongside Debit ones and are managed in
+     * Category Management, so this list is only a fallback for the moment before the database Flow
+     * emits. It mirrors the defaults seeded by `ExpenseRepository.seedDefaultCategories()`.
+     */
+    val FALLBACK_CREDIT_CATEGORIES = listOf("Friend", "Other", "Refund", "Salary", "Transfer")
 
+    /**
+     * The friend category, on either side of the ledger.
+     *
+     * Fresh installs seed a single linked "Friend" category. Installs created before that shipped
+     * have "Friends" on the Debit side and "Friend" on Credit, and their existing transactions
+     * still carry those names, so both spellings are accepted on both sides.
+     */
     fun isFriendCategory(type: String, category: String): Boolean {
-        return (type == "Debit" && category == "Friends") || (type == "Credit" && category == "Friend")
+        return category == "Friend" || category == "Friends"
     }
 
     /**
@@ -23,9 +35,13 @@ object TransactionConstants {
         }
     }
 
-    fun getInitialCategory(type: String, debitCategories: List<String>): String {
+    fun getInitialCategory(
+        type: String,
+        debitCategories: List<String>,
+        creditCategories: List<String> = FALLBACK_CREDIT_CATEGORIES
+    ): String {
         return if (type == "Credit") {
-            CREDIT_CATEGORIES.first()
+            creditCategories.firstOrNull() ?: FALLBACK_CREDIT_CATEGORIES.first()
         } else {
             debitCategories.firstOrNull() ?: "Other"
         }

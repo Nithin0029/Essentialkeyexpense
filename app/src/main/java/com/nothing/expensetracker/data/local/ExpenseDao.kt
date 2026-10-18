@@ -56,6 +56,15 @@ interface ExpenseDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense): Long
 
+    /** Bulk variant used by the restore, which can be inserting hundreds of rows at once. */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertExpenses(expenses: List<Expense>)
+
+    /** Every transaction id already stored locally, used to decide which sheet rows are new
+     *  when restoring from Google Sheets. */
+    @Query("SELECT id FROM expenses")
+    suspend fun getAllExpenseIds(): List<Long>
+
     @androidx.room.Update
     suspend fun updateExpense(expense: Expense)
 
@@ -115,6 +124,11 @@ interface ExpenseDao {
 
     @Query("SELECT COUNT(*) FROM expenses WHERE category = :categoryName")
     suspend fun countExpensesByCategory(categoryName: String): Int
+
+    /** Used before a category is taken off one side of the ledger, so transactions already filed
+     *  under it on that side aren't orphaned. */
+    @Query("SELECT COUNT(*) FROM expenses WHERE category = :categoryName AND type = :type")
+    suspend fun countExpensesByCategoryAndType(categoryName: String, type: String): Int
 
     @Query("SELECT * FROM expenses WHERE category = :categoryName")
     suspend fun getExpensesByCategoryName(categoryName: String): List<Expense>

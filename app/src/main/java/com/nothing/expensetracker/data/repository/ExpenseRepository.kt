@@ -6,11 +6,14 @@ import com.nothing.expensetracker.data.local.FriendDao
 import com.nothing.expensetracker.data.local.Category
 import com.nothing.expensetracker.data.local.CategoryDao
 import com.nothing.expensetracker.data.local.Budget
+import com.nothing.expensetracker.data.local.AutopayDao
+import com.nothing.expensetracker.data.local.AutopayRule
 import com.nothing.expensetracker.data.local.BudgetDao
 import com.nothing.expensetracker.data.local.PaymentMethod
 import com.nothing.expensetracker.data.local.PaymentMethodDao
 import com.nothing.expensetracker.feature.budget.BudgetAlertManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Provider
@@ -23,6 +26,7 @@ class ExpenseRepository @Inject constructor(
     private val categoryDao: CategoryDao,
     private val budgetDao: BudgetDao,
     private val paymentMethodDao: PaymentMethodDao,
+    private val autopayDao: AutopayDao,
     private val budgetAlertManager: BudgetAlertManager
 ) {
     fun getAllExpenses() = expenseDao.getAllExpenses()
@@ -73,6 +77,12 @@ class ExpenseRepository @Inject constructor(
     // Category Management
     fun getCategories() = categoryDao.getAllCategories()
 
+    /** Categories offered when adding a Debit transaction (includes subcategories). */
+    fun getDebitCategories() = categoryDao.getDebitCategories()
+
+    /** Categories offered when adding a Credit transaction. Always top-level. */
+    fun getCreditCategories() = categoryDao.getCreditCategories()
+
     suspend fun insertCategory(category: Category) {
         val categoryWithPending = category.copy(syncStatus = "Pending")
         categoryDao.insertCategory(categoryWithPending)
@@ -90,8 +100,27 @@ class ExpenseRepository @Inject constructor(
         return categoryDao.countSubcategories(parentId)
     }
 
+    suspend fun countDebitCategories(): Int = categoryDao.countDebitCategories()
+
+    suspend fun countCreditCategories(): Int = categoryDao.countCreditCategories()
+
+    /**
+     * Turns a category on or off for one side of the ledger. This is what "linking" is: switching
+     * [Category.usedForCredit] on for an existing debit category such as "Home" makes the one row
+     * serve both sides, so its debit and credit totals are netted in Reports.
+     */
+    suspend fun setCategoryScope(category: Category, usedForDebit: Boolean, usedForCredit: Boolean) {
+        categoryDao.updateCategory(
+            category.copy(
+                usedForDebit = usedForDebit,
+                usedForCredit = usedForCredit,
+                syncStatus = "Pending"
+            )
+        )
+    }
+
     suspend fun deleteCategory(category: Category) {
-        if (category.name == "Friends" || category.name == "Transfer") return // Safety lock
+        if (category.name in PROTECTED_CATEGORIES) return // Safety lock
 
         val count = expenseDao.countExpensesByCategory(category.name)
         if (count == 0) {
@@ -113,6 +142,10 @@ class ExpenseRepository @Inject constructor(
         return expenseDao.countExpensesByCategory(categoryName)
     }
 
+    suspend fun getCategoryUsageCount(categoryName: String, type: String): Int {
+        return expenseDao.countExpensesByCategoryAndType(categoryName, type)
+    }
+
     suspend fun getCategoryCount(): Int {
         return categoryDao.countCategories()
     }
@@ -120,6 +153,8 @@ class ExpenseRepository @Inject constructor(
     suspend fun getCategoryByNameCaseInsensitive(name: String): Category? {
         return categoryDao.getCategoryByNameCaseInsensitive(name.trim())
     }
+
+    suspend fun getCategoryById(id: Long): Category? = categoryDao.getCategoryById(id)
 
     suspend fun deleteCategoryAndMoveTransactions(category: Category, replacementCategoryName: String) {
         expenseDao.updateCategoryNameInTransactions(category.name, replacementCategoryName)
@@ -149,22 +184,66 @@ class ExpenseRepository @Inject constructor(
     suspend fun seedDefaultCategories() {
         android.util.Log.d("CATEGORY_SYNC", "Ensuring default categories")
         try {
-            val defaults = listOf(
-                "Food", "Home", "Bills", "Travel", "Shopping",
-                "Entertainment", "Medical", "Friends", "Transfer", "Other"
-            )
             var inserted = 0
-            defaults.forEach { name ->
+
+            // Debit side. A name that also appears in the Credit defaults is created already
+            // linked, so "Friend", "Transfer" and "Other" are one category serving both sides
+            // from the very first launch rather than two rows the user has to join up.
+            DEFAULT_DEBIT_CATEGORIES.forEach { name ->
+                if (shouldSkipDefault(name)) return@forEach
                 if (categoryDao.getCategoryByNameAnyStatus(name) == null) {
-                    categoryDao.insertCategory(Category(name = name, isSystem = true, syncStatus = "Synced"))
+                    categoryDao.insertCategory(
+                        Category(
+                            name = name,
+                            isSystem = true,
+                            syncStatus = "Synced",
+                            usedForDebit = true,
+                            usedForCredit = name in DEFAULT_CREDIT_CATEGORIES
+                        )
+                    )
                     inserted++
                 }
             }
+
+            // Credit side. Anything already present from the pass above (or from an older
+            // install) is switched on for Credit rather than duplicated.
+            DEFAULT_CREDIT_CATEGORIES.forEach { name ->
+                val existing = categoryDao.getCategoryByNameAnyStatus(name)
+                when {
+                    existing == null -> {
+                        categoryDao.insertCategory(
+                            Category(
+                                name = name,
+                                isSystem = true,
+                                syncStatus = "Synced",
+                                usedForDebit = false,
+                                usedForCredit = true
+                            )
+                        )
+                        inserted++
+                    }
+                    // Don't resurrect a scope on a category the user deliberately deleted.
+                    existing.syncStatus != "Deleted" && !existing.usedForCredit -> {
+                        categoryDao.updateCategory(existing.copy(usedForCredit = true))
+                    }
+                }
+            }
+
             android.util.Log.i("CATEGORY_SYNC", "Default categories ensured | Newly inserted: $inserted")
         } catch (e: Exception) {
             android.util.Log.e("CATEGORY_SYNC", "Critical error during seeding", e)
         }
     }
+
+    /**
+     * Guards against seeding a default that an existing install already has under its old name.
+     *
+     * The Debit side used to ship "Friends" (plural) while Credit shipped "Friend". The defaults
+     * now use "Friend" on both sides so the two link into one category, but an install that
+     * already has "Friends" must not end up showing both.
+     */
+    private suspend fun shouldSkipDefault(name: String): Boolean =
+        name == "Friend" && categoryDao.getCategoryByNameAnyStatus("Friends") != null
 
     /**
      * One-time cleanup for categories dropped from the default set: "Income" made no sense as a
@@ -189,6 +268,23 @@ class ExpenseRepository @Inject constructor(
 
     // Payment Method Management
     fun getPaymentMethods() = paymentMethodDao.getAllPaymentMethods()
+
+    fun getAllPaymentMethods() = paymentMethodDao.getAllPaymentMethods()
+
+    suspend fun getPaymentMethodByName(name: String) =
+        paymentMethodDao.getByNameCaseInsensitive(name.trim())
+
+    suspend fun insertRestoredPaymentMethod(method: PaymentMethod) {
+        paymentMethodDao.insertPaymentMethod(method)
+    }
+
+    suspend fun getAllAutopayRulesOnce(): List<AutopayRule> = autopayDao.getAllAutopayRules().first()
+
+    suspend fun getAutopayRuleById(id: Long) = autopayDao.getAutopayRuleById(id)
+
+    suspend fun insertRestoredAutopayRule(rule: AutopayRule) {
+        autopayDao.insertAutopayRule(rule)
+    }
 
     fun getPaymentMethodNames() = paymentMethodDao.getAllPaymentMethods().map { list -> list.map { it.name } }
 
@@ -240,6 +336,61 @@ class ExpenseRepository @Inject constructor(
     }
 
     fun getAllCategories() = categoryDao.getAllCategories().map { list -> list.map { it.name } }
+
+    /** Names of categories usable on a Debit transaction. */
+    fun getDebitCategoryNames() = categoryDao.getDebitCategories().map { list -> list.map { it.name } }
+
+    /** Names of categories usable on a Credit transaction. */
+    fun getCreditCategoryNames() = categoryDao.getCreditCategories().map { list -> list.map { it.name } }
+
+    // --- Restore-from-Sheets support ---
+
+    suspend fun getAllExpenseIds(): List<Long> = expenseDao.getAllExpenseIds()
+
+    /** Inserts a row pulled from Google Sheets. Already marked "Synced" because the sheet is
+     *  where it came from, so it must not be queued straight back up as a pending change. */
+    suspend fun insertRestoredExpense(expense: Expense) {
+        expenseDao.insertExpense(expense.copy(syncStatus = "Synced"))
+    }
+
+    /** Bulk restore insert. One statement rather than one per row. */
+    suspend fun insertRestoredExpenses(expenses: List<Expense>) {
+        expenseDao.insertExpenses(expenses.map { it.copy(syncStatus = "Synced") })
+    }
+
+    suspend fun insertRestoredCategory(category: Category) {
+        categoryDao.insertCategory(category.copy(syncStatus = "Synced"))
+    }
+
+    suspend fun findExistingBudget(categoryName: String?, month: Int, year: Int) =
+        budgetDao.findExistingBudget(categoryName, month, year)
+
+    suspend fun insertRestoredBudget(budget: com.nothing.expensetracker.data.local.Budget) {
+        budgetDao.insertBudget(budget.copy(syncStatus = "Synced"))
+    }
+
+    suspend fun getFriendByNameCaseInsensitive(name: String) =
+        friendDao.getFriendByNameCaseInsensitive(name.trim())
+
+    suspend fun insertRestoredFriend(friend: com.nothing.expensetracker.data.local.Friend) {
+        friendDao.insertFriend(friend.copy(syncStatus = "Synced"))
+    }
+
+    suspend fun getAllBudgetsOnce() = budgetDao.getAllBudgets()
+
+    /** Full friend rows, including syncStatus, as opposed to [getAllFriends] which maps to names. */
+    fun getAllFriendEntities() = friendDao.getAllFriends()
+
+    suspend fun friendHasTransactions(friendName: String): Boolean =
+        expenseDao.getTransactionsByFriend(friendName).first().isNotEmpty()
+
+    /** Hard deletes, used when the spreadsheet says a record is gone. Deliberately not the
+     *  soft-delete paths: the row is already absent upstream, so queueing a delete to push
+     *  back up would be pointless work. */
+    suspend fun deleteFriendPermanently(friend: com.nothing.expensetracker.data.local.Friend) {
+        friendDao.deleteFriend(friend)
+    }
+
 
     fun getAllFriends() = friendDao.getAllFriends().map { list -> list.map { it.name } }
 
@@ -299,4 +450,29 @@ class ExpenseRepository @Inject constructor(
     suspend fun updateBudgetSyncStatus(id: Long, status: String, attempt: Long, error: String?) = budgetDao.updateSyncStatus(id, status, attempt, error)
     suspend fun purgeDeletedBudgets() = budgetDao.purgeDeletedBudgets()
     fun getUnsyncedBudgetCount() = budgetDao.getUnsyncedCount()
+
+    companion object {
+        /**
+         * Categories a fresh install starts with. Deliberately short - the list is a starting
+         * point, not a taxonomy, and anything missing is one tap away in Category Management.
+         *
+         * "Friend", "Transfer" and "Other" appear in both lists on purpose: they are seeded as a
+         * single linked category serving both sides of the ledger.
+         */
+        val DEFAULT_DEBIT_CATEGORIES = listOf(
+            "Bills", "Entertainment", "Food", "Friend", "Home",
+            "Investment", "Medical", "Other", "Transfer"
+        )
+
+        val DEFAULT_CREDIT_CATEGORIES = listOf(
+            "Friend", "Other", "Refund", "Salary", "Transfer"
+        )
+
+        /**
+         * Categories the app's own logic looks up by exact name, so they can't be deleted:
+         * "Friends"/"Friend" drive friend settlements (TransactionConstants.isFriendCategory) and
+         * "Transfer" marks self-transfers that are excluded from income and spending totals.
+         */
+        val PROTECTED_CATEGORIES = setOf("Friends", "Friend", "Transfer")
+    }
 }
