@@ -33,9 +33,14 @@
                 android:resource="@xml/expense_widget_info" />
         </receiver>
 
+        <!-- Not exported. The only entry point is a PendingIntent from the home-screen widget,
+             which fires with this app's own identity, so the launcher needs no direct access.
+             Exported it was reachable by explicit component name from any installed app, which
+             skipped the MPIN lock screen and showed that dialog's friend, category and payment
+             method names. -->
         <activity
             android:name=".feature.overlay.QuickAddShortcutActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity

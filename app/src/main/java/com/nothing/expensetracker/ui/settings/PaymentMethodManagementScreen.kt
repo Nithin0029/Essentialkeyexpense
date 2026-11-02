@@ -58,9 +58,9 @@ fun PaymentMethodManagementScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -75,7 +75,7 @@ fun PaymentMethodManagementScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Payment Method")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -130,8 +130,8 @@ fun PaymentMethodManagementScreen(
     if (methodToDelete != null) {
         AlertDialog(
             onDismissRequest = { methodToDelete = null },
-            title = { Text("Delete Payment Method", color = Color.White) },
-            text = { Text("Are you sure you want to delete \"${methodToDelete!!.name}\"?\n\nThis action may affect existing transactions.", color = Color.White) },
+            title = { Text("Delete Payment Method", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Are you sure you want to delete \"${methodToDelete!!.name}\"?\n\nThis action may affect existing transactions.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -157,17 +157,17 @@ fun PaymentMethodManagementScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White)
                 ) {
-                    Text("Delete", color = Color.White)
+                    Text("Delete")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { methodToDelete = null }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -178,8 +178,8 @@ fun PaymentMethodManagementScreen(
                 showInUseDialog = false
                 methodToDelete = null
             },
-            title = { Text("Payment Method In Use", color = Color.White) },
-            text = { Text("This payment method is currently used by existing transactions. Choose what you want to do.", color = Color.White) },
+            title = { Text("Payment Method In Use", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("This payment method is currently used by existing transactions. Choose what you want to do.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -196,7 +196,7 @@ fun PaymentMethodManagementScreen(
                             showInUseDialog = false
                             showFinalDeleteTransactionsDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Delete all associated transactions")
@@ -208,11 +208,11 @@ fun PaymentMethodManagementScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Cancel", color = Color.Gray)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -225,10 +225,10 @@ fun PaymentMethodManagementScreen(
                 showMoveTransactionsDialog = false
                 methodToDelete = null
             },
-            title = { Text("Move Transactions", color = Color.White) },
+            title = { Text("Move Transactions", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
-                    Text("Select a payment method to move existing transactions to:", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                    Text("Select a payment method to move existing transactions to:", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(16.dp))
 
                     var expanded by remember { mutableStateOf(false) }
@@ -244,8 +244,8 @@ fun PaymentMethodManagementScreen(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         ExposedDropdownMenu(
@@ -288,10 +288,10 @@ fun PaymentMethodManagementScreen(
                     showMoveTransactionsDialog = false
                     methodToDelete = null
                 }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -302,8 +302,8 @@ fun PaymentMethodManagementScreen(
                 showFinalDeleteTransactionsDialog = false
                 methodToDelete = null
             },
-            title = { Text("Delete Transactions?", color = Color.White) },
-            text = { Text("This will permanently delete all transactions under \"${methodToDelete!!.name}\". This action cannot be undone.", color = Color.White) },
+            title = { Text("Delete Transactions?", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("This will permanently delete all transactions under \"${methodToDelete!!.name}\". This action cannot be undone.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -316,7 +316,7 @@ fun PaymentMethodManagementScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White)
                 ) {
                     Text("Delete Anyway")
                 }
@@ -326,10 +326,10 @@ fun PaymentMethodManagementScreen(
                     showFinalDeleteTransactionsDialog = false
                     methodToDelete = null
                 }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -344,7 +344,7 @@ fun PaymentMethodItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -378,19 +378,19 @@ fun PaymentMethodItem(
                     Text(
                         text = method.name,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
 
                     Surface(
-                        color = if (method.isSystem) Color.DarkGray else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        color = if (method.isSystem) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(4.dp),
                         modifier = Modifier.padding(top = 4.dp)
                     ) {
                         Text(
                             text = if (method.isSystem) "Default" else "Custom",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (method.isSystem) Color.LightGray else MaterialTheme.colorScheme.primary,
+                            color = if (method.isSystem) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -402,7 +402,7 @@ fun PaymentMethodItem(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Locked",
-                        tint = Color.DarkGray.copy(alpha = 0.3f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -441,18 +441,18 @@ fun EmptyPaymentMethodsState() {
             imageVector = Icons.Default.Payments,
             contentDescription = null,
             modifier = Modifier.size(80.dp),
-            tint = Color.DarkGray.copy(alpha = 0.5f)
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No Payment Methods Found",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = "Add a custom one with the + button.",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -469,7 +469,7 @@ fun PaymentMethodDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column {
                 OutlinedTextField(
@@ -483,8 +483,8 @@ fun PaymentMethodDialog(
                     isError = error != null,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 if (error != null) {
@@ -514,10 +514,10 @@ fun PaymentMethodDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.Gray)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

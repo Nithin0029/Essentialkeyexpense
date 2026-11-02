@@ -42,13 +42,13 @@ fun OverallBudgetScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -63,7 +63,7 @@ fun OverallBudgetScreen(
             if (budget == null) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No monthly budget set", color = Color.Gray)
+                        Text("No monthly budget set", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(onClick = { showSetBudgetDialog = true }) {
                             Text("Set Budget")
@@ -74,7 +74,7 @@ fun OverallBudgetScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(24.dp)) {
                         Row(
@@ -82,9 +82,9 @@ fun OverallBudgetScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Overall Limit", color = Color.Gray, style = MaterialTheme.typography.titleMedium)
+                            Text("Overall Limit", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
                             IconButton(onClick = { viewModel.deleteBudget(budget) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray)
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         
@@ -92,7 +92,7 @@ fun OverallBudgetScreen(
                             text = formatCurrency(budget.amount),
                             style = MaterialTheme.typography.headlineLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         
                         Spacer(modifier = Modifier.height(24.dp))
@@ -101,19 +101,19 @@ fun OverallBudgetScreen(
                             progress = { usage.percentage },
                             modifier = Modifier.fillMaxWidth().height(12.dp).clip(CircleShape),
                             color = if (usage.percentage > 0.9f) Color.Red else MaterialTheme.colorScheme.primary,
-                            trackColor = Color.DarkGray
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
                         )
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Column {
-                                Text("Spent", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-                                Text(formatCurrency(usage.spent), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Spent", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                Text(formatCurrency(usage.spent), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("Remaining", color = Color.Gray, style = MaterialTheme.typography.labelSmall)
-                                Text(formatCurrency(usage.remaining), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text("Remaining", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
+                                Text(formatCurrency(usage.remaining), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -126,7 +126,7 @@ fun OverallBudgetScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Edit Limit", color = Color.White)
+                    Text("Edit Limit")
                 }
             }
         }
@@ -164,13 +164,13 @@ fun CategoryBudgetsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -212,7 +212,7 @@ fun CategoryBudgetCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -221,20 +221,20 @@ fun CategoryBudgetCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text(text = usage.categoryName, style = MaterialTheme.typography.titleMedium, color = Color.White)
+                    Text(text = usage.categoryName, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
                     Text(
                         text = if (usage.budget != null) "${formatCurrency(usage.budget.amount)} limit" else "No limit set",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 Row {
                     IconButton(onClick = onEditClick) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                     }
                     if (usage.budget != null) {
                         IconButton(onClick = onDeleteClick) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -246,19 +246,19 @@ fun CategoryBudgetCard(
                     progress = { usage.percentage },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
                     color = if (usage.percentage > 0.9f) Color.Red else MaterialTheme.colorScheme.primary,
-                    trackColor = Color.DarkGray
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
                         text = "${formatCurrency(usage.spent)} spent",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "${(usage.percentage * 100).toInt()}%",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -277,7 +277,7 @@ fun BudgetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             OutlinedTextField(
                 value = amountText,
@@ -285,8 +285,8 @@ fun BudgetDialog(
                 label = { Text("Amount") },
                 singleLine = true,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -301,10 +301,10 @@ fun BudgetDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.Gray)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

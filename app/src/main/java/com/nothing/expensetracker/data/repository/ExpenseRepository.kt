@@ -246,16 +246,35 @@ class ExpenseRepository @Inject constructor(
         name == "Friend" && categoryDao.getCategoryByNameAnyStatus("Friends") != null
 
     /**
-     * One-time cleanup for categories dropped from the default set: "Income" made no sense as a
-     * Debit-type category (Credit already has Salary/Refund/etc.), and Groceries/Snacks/Fuel/
-     * Fitness/College were trimmed down to the categories actually wanted. Only removes a category
-     * when it's unused so no existing transaction ever loses its category.
+     * Retires categories that have been dropped from the default set.
+     *
+     * Two guards, because this runs on every launch rather than once:
+     *
+     * - only a category with **zero** transactions is retired, so nothing you have actually used
+     *   disappears and no transaction is left without a category - an install that has been
+     *   putting things under "Medical" for a year keeps Medical, and keeps it even if those
+     *   transactions are later deleted, since soft-deleted rows still count.
+     * - only a category the app itself seeded (`isSystem`) is retired. Adding one of these names
+     *   back by hand makes a user category, which this never touches - otherwise re-adding
+     *   "Travel" would lose it on the next launch, before anything had been filed under it.
+     *
+     * "Income" made no sense as a Debit category (Credit has Salary); Groceries/Snacks/Fuel/
+     * Fitness/College were an over-long first attempt; Entertainment/Medical/Travel/Investment/
+     * Refund went in the trim down to seven - see [DEFAULT_DEBIT_CATEGORIES] for why each one
+     * failed to earn its place.
      */
     suspend fun cleanupLegacyCategories() {
         try {
-            val legacyNames = listOf("Income", "Groceries", "Snacks", "Fuel", "Fitness", "College")
+            val legacyNames = listOf(
+                "Income", "Groceries", "Snacks", "Fuel", "Fitness", "College",
+                "Entertainment", "Medical", "Travel", "Investment", "Refund"
+            )
             legacyNames.forEach { name ->
                 val category = categoryDao.getCategoryByNameCaseInsensitive(name) ?: return@forEach
+                // Never touch a category the user created. This runs on every launch, so without
+                // the isSystem check someone who adds "Travel" back loses it the next time they
+                // open the app, before they have had a chance to file anything under it.
+                if (!category.isSystem) return@forEach
                 if (expenseDao.countExpensesByCategory(category.name) == 0) {
                     categoryDao.updateCategory(category.copy(syncStatus = "Deleted"))
                     android.util.Log.i("CATEGORY_SYNC", "Removed unused legacy category: $name")
@@ -456,16 +475,28 @@ class ExpenseRepository @Inject constructor(
          * Categories a fresh install starts with. Deliberately short - the list is a starting
          * point, not a taxonomy, and anything missing is one tap away in Category Management.
          *
+         * The asymmetry is the whole argument for keeping it this short: adding a category takes
+         * seconds, while removing one you have already filed transactions under drags those
+         * transactions with it. A default nobody wanted is clutter on every entry screen forever.
+         *
+         * A category only earns a place here if its total would change what you do. "Food" does.
+         * "Entertainment" did not - it overlapped Food, Shopping and Bills (a streaming
+         * subscription is a bill) and collected a few small rows. "Refund" was worse than the
+         * alternative: filed as income it inflates income and leaves spending overstated, whereas
+         * a refund filed under the original linked category nets off that category's spending,
+         * which is the answer you actually want.
+         *
          * "Friend", "Transfer" and "Other" appear in both lists on purpose: they are seeded as a
-         * single linked category serving both sides of the ledger.
+         * single linked category serving both sides of the ledger. "Other" is the only escape
+         * hatch, and it is deliberately the only one - every extra vague bucket is a row in
+         * Reports that answers nothing.
          */
         val DEFAULT_DEBIT_CATEGORIES = listOf(
-            "Bills", "Entertainment", "Food", "Friend", "Home",
-            "Investment", "Medical", "Other", "Transfer"
+            "Bills", "Food", "Friend", "Home", "Other", "Shopping", "Transfer"
         )
 
         val DEFAULT_CREDIT_CATEGORIES = listOf(
-            "Friend", "Other", "Refund", "Salary", "Transfer"
+            "Friend", "Other", "Salary", "Transfer"
         )
 
         /**

