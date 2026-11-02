@@ -145,7 +145,7 @@ interface ExpenseDao {
     @Query("SELECT * FROM expenses WHERE paymentMethod = :methodName")
     suspend fun getExpensesByPaymentMethodName(methodName: String): List<Expense>
 
-    @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category != 'Transfer' GROUP BY category ORDER BY totalAmount DESC")
+    @Query("SELECT category, SUM(amount) as totalAmount FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category NOT IN ('Transfer', 'Investment') GROUP BY category ORDER BY totalAmount DESC")
     fun getExpensesByCategory(): Flow<List<CategoryExpense>>
 
     @Query("""
@@ -153,7 +153,7 @@ interface ExpenseDao {
         FROM expenses 
         WHERE syncStatus != 'Deleted'
           AND type = 'Debit' 
-          AND category != 'Transfer'
+          AND category NOT IN ('Transfer', 'Investment')
           AND strftime('%m', datetime(timestamp / 1000, 'unixepoch')) = :month
           AND strftime('%Y', datetime(timestamp / 1000, 'unixepoch')) = :year
         GROUP BY category 
@@ -169,7 +169,7 @@ interface ExpenseDao {
 
     @Query("""
         SELECT SUM(amount) FROM expenses
-        WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category != 'Transfer'
+        WHERE syncStatus != 'Deleted' AND type = 'Debit' AND category NOT IN ('Transfer', 'Investment')
           AND strftime('%m', datetime(timestamp / 1000, 'unixepoch')) = :month
           AND strftime('%Y', datetime(timestamp / 1000, 'unixepoch')) = :year
     """)

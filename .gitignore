@@ -73,11 +73,19 @@ app/google-services.json
 # ---------------------------------------------------------------------------
 
 # Catch-all: assume any JSON is a service account or config dump until proven otherwise.
+# Anything genuinely needed in the repository has to be negated below, by name -
+# the catch-all is silent, so a new JSON simply never gets committed.
 *.json
 
 # Project files that must be tracked (checked in and safe - no credentials).
 !version.json
 !google-services.template.json
+
+# Room's exported schemas, if schema export is ever switched on. They are the
+# record of every migration and belong in the repository; without this they
+# would disappear into the catch-all above without a word.
+!app/schemas/
+!app/schemas/**/*.json
 
 # Environment and credential files, in any directory.
 .env
@@ -93,6 +101,7 @@ app/google-services.json
 
 # Final word: these must never be committed, whatever any rule above says.
 # Listed last so no negation can re-expose them.
+/keys/
 **/google-services.json
 **/google-services*.json
 .firebase/
@@ -108,3 +117,6 @@ app/google-services.json
 *~
 
 KNOWN_ISSUES.md
+
+# Internal security review - not published
+SECURITY_AUDIT.md

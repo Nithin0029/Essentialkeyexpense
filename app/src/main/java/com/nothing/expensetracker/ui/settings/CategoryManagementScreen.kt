@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -70,9 +71,9 @@ fun CategoryManagementScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         },
@@ -87,7 +88,7 @@ fun CategoryManagementScreen(
                 Icon(Icons.Default.Add, contentDescription = "Add Category")
             }
         },
-        containerColor = Color.Black
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -200,12 +201,12 @@ fun CategoryManagementScreen(
         val otherSide = if (uiState.scope == CategoryScope.DEBIT) "Credit" else "Debit"
         AlertDialog(
             onDismissRequest = { categoryToUnlink = null },
-            title = { Text("Unlink from ${uiState.scope.label}", color = Color.White) },
+            title = { Text("Unlink from ${uiState.scope.label}", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Text(
                     "\"${target.name}\" will stop appearing in ${uiState.scope.label} transactions " +
                         "and stay a $otherSide category. Its totals will no longer be netted in Reports.",
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             },
             confirmButton = {
@@ -220,10 +221,10 @@ fun CategoryManagementScreen(
             },
             dismissButton = {
                 TextButton(onClick = { categoryToUnlink = null }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -245,8 +246,8 @@ fun CategoryManagementScreen(
     if (categoryToDelete != null) {
         AlertDialog(
             onDismissRequest = { categoryToDelete = null },
-            title = { Text("Delete Category", color = Color.White) },
-            text = { Text("Are you sure you want to delete \"${categoryToDelete!!.name}\"?\n\nThis action may affect existing transactions.", color = Color.White) },
+            title = { Text("Delete Category", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("Are you sure you want to delete \"${categoryToDelete!!.name}\"?\n\nThis action may affect existing transactions.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -272,17 +273,17 @@ fun CategoryManagementScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White)
                 ) {
-                    Text("Delete", color = Color.White)
+                    Text("Delete")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { categoryToDelete = null }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -293,8 +294,8 @@ fun CategoryManagementScreen(
                 showInUseDialog = false
                 categoryToDelete = null 
             },
-            title = { Text("Category In Use", color = Color.White) },
-            text = { Text("This category is currently used by existing transactions. Choose what you want to do.", color = Color.White) },
+            title = { Text("Category In Use", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("This category is currently used by existing transactions. Choose what you want to do.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -311,7 +312,7 @@ fun CategoryManagementScreen(
                             showInUseDialog = false
                             showFinalDeleteTransactionsDialog = true 
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Delete all associated transactions")
@@ -323,11 +324,11 @@ fun CategoryManagementScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Cancel", color = Color.Gray)
+                        Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -340,10 +341,10 @@ fun CategoryManagementScreen(
                 showMoveTransactionsDialog = false
                 categoryToDelete = null 
             },
-            title = { Text("Move Transactions", color = Color.White) },
+            title = { Text("Move Transactions", color = MaterialTheme.colorScheme.onSurface) },
             text = {
                 Column {
-                    Text("Select a category to move existing transactions to:", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                    Text("Select a category to move existing transactions to:", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     var expanded by remember { mutableStateOf(false) }
@@ -359,8 +360,8 @@ fun CategoryManagementScreen(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth(),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                             )
                         )
                         ExposedDropdownMenu(
@@ -403,10 +404,10 @@ fun CategoryManagementScreen(
                     showMoveTransactionsDialog = false
                     categoryToDelete = null 
                 }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -417,8 +418,8 @@ fun CategoryManagementScreen(
                 showFinalDeleteTransactionsDialog = false
                 categoryToDelete = null 
             },
-            title = { Text("Delete Transactions?", color = Color.White) },
-            text = { Text("This will permanently delete all transactions under \"${categoryToDelete!!.name}\". This action cannot be undone.", color = Color.White) },
+            title = { Text("Delete Transactions?", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text("This will permanently delete all transactions under \"${categoryToDelete!!.name}\". This action cannot be undone.", color = MaterialTheme.colorScheme.onSurface) },
             confirmButton = {
                 Button(
                     onClick = {
@@ -431,7 +432,7 @@ fun CategoryManagementScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD71921), contentColor = Color.White)
                 ) {
                     Text("Delete Anyway")
                 }
@@ -441,10 +442,10 @@ fun CategoryManagementScreen(
                     showFinalDeleteTransactionsDialog = false
                     categoryToDelete = null 
                 }) {
-                    Text("Cancel", color = Color.Gray)
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
-            containerColor = Color(0xFF1E1E1E),
+            containerColor = MaterialTheme.colorScheme.surface,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -458,7 +459,7 @@ fun CategoryScopeTabs(
 ) {
     PrimaryTabRow(
         selectedTabIndex = selected.ordinal,
-        containerColor = Color.Black,
+        containerColor = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(bottom = 12.dp)
     ) {
@@ -473,12 +474,13 @@ fun CategoryScopeTabs(
                     )
                 },
                 selectedContentColor = MaterialTheme.colorScheme.primary,
-                unselectedContentColor = Color.Gray
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CategoryItem(
     category: Category,
@@ -495,7 +497,7 @@ fun CategoryItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
             modifier = Modifier
@@ -529,25 +531,31 @@ fun CategoryItem(
                     Text(
                         text = category.name,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         fontWeight = FontWeight.Medium
                     )
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Four action buttons on a Debit row leave this column about 70dp wide, which
+                    // was breaking "Linked" mid-word into "Lin / ked". A FlowRow moves a chip that
+                    // does not fit onto its own line instead of squeezing it, so the labels stay
+                    // whole however narrow the row gets.
+                    FlowRow(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
                         Surface(
-                            color = if (category.isSystem) Color.DarkGray else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            color = if (category.isSystem) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.padding(top = 4.dp)
                         ) {
                             Text(
                                 text = if (category.isSystem) "System" else "Custom",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (category.isSystem) Color.LightGray else MaterialTheme.colorScheme.primary,
+                                color = if (category.isSystem) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                         if (category.isLinked) {
-                            Spacer(modifier = Modifier.width(6.dp))
                             Surface(
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(4.dp),
@@ -567,7 +575,9 @@ fun CategoryItem(
                                     Text(
                                         text = "Linked",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -576,7 +586,9 @@ fun CategoryItem(
                             Text(
                                 text = "  $subcategoryCount subcategor${if (subcategoryCount == 1) "y" else "ies"}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.Gray,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
@@ -586,14 +598,14 @@ fun CategoryItem(
                     Icon(
                         imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (expanded) "Collapse" else "Expand",
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
             // Subcategories are a Debit-only concept, so the control is hidden on the Credit tab.
             if (scope == CategoryScope.DEBIT) {
-                IconButton(onClick = onAddSubcategoryClick) {
+                IconButton(onClick = onAddSubcategoryClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Add Subcategory",
@@ -603,7 +615,7 @@ fun CategoryItem(
                 }
             }
 
-            IconButton(onClick = onEditClick) {
+            IconButton(onClick = onEditClick, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = "Rename",
@@ -613,18 +625,18 @@ fun CategoryItem(
             }
 
             if (category.isLinked && !isProtected) {
-                IconButton(onClick = onUnlinkClick) {
+                IconButton(onClick = onUnlinkClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = Icons.Default.LinkOff,
                         contentDescription = "Unlink from ${scope.label}",
-                        tint = Color.Gray,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
             if (!isProtected) {
-                IconButton(onClick = onDeleteClick) {
+                IconButton(onClick = onDeleteClick, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete",
@@ -633,11 +645,11 @@ fun CategoryItem(
                     )
                 }
             } else {
-                IconButton(onClick = {}, enabled = false) {
+                IconButton(onClick = {}, enabled = false, modifier = Modifier.size(40.dp)) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Locked",
-                        tint = Color.DarkGray.copy(alpha = 0.3f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -655,7 +667,7 @@ fun SubcategoryItem(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF141414))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
             modifier = Modifier
@@ -668,14 +680,14 @@ fun SubcategoryItem(
                 Icon(
                     imageVector = Icons.Default.SubdirectoryArrowRight,
                     contentDescription = null,
-                    tint = Color.Gray,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = category.name,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
             IconButton(onClick = onEditClick, modifier = Modifier.size(32.dp)) {
@@ -709,18 +721,18 @@ fun EmptyCategoriesState(scope: CategoryScope) {
             imageVector = Icons.Default.Category,
             contentDescription = null,
             modifier = Modifier.size(80.dp),
-            tint = Color.DarkGray.copy(alpha = 0.5f)
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "No ${scope.label} Categories",
             style = MaterialTheme.typography.titleMedium,
-            color = Color.White
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = "Tap + to add one.",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -743,7 +755,7 @@ fun CategoryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title, color = Color.White) },
+        title = { Text(title, color = MaterialTheme.colorScheme.onSurface) },
         text = {
             Column {
                 OutlinedTextField(
@@ -757,8 +769,8 @@ fun CategoryDialog(
                     isError = error != null,
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
                 if (error != null) {
@@ -772,7 +784,7 @@ fun CategoryDialog(
                 if (helperText != null) {
                     Text(
                         text = helperText,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(top = 8.dp, start = 4.dp)
                     )
@@ -782,14 +794,14 @@ fun CategoryDialog(
                     Text(
                         text = "Or link an existing category",
                         style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
                         text = "It stays one category, and its two sides are netted in Reports.",
                         style = MaterialTheme.typography.labelSmall,
                         // Gray, not DarkGray: this dialog sits on a hardcoded #1E1E1E surface,
                         // against which DarkGray is barely legible.
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -799,7 +811,7 @@ fun CategoryDialog(
                             // would be dark-on-dark while the app theme is light.
                             AssistChip(
                                 onClick = { onLinkCandidateClick(candidate) },
-                                label = { Text(candidate.name, color = Color.White) },
+                                label = { Text(candidate.name, color = MaterialTheme.colorScheme.onSurface) },
                                 leadingIcon = {
                                     Icon(
                                         imageVector = Icons.Default.Link,
@@ -809,8 +821,8 @@ fun CategoryDialog(
                                     )
                                 },
                                 colors = AssistChipDefaults.assistChipColors(
-                                    containerColor = Color.White.copy(alpha = 0.06f),
-                                    labelColor = Color.White,
+                                    containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
                                     leadingIconContentColor = MaterialTheme.colorScheme.primary
                                 ),
                                 border = BorderStroke(
@@ -840,10 +852,10 @@ fun CategoryDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color.Gray)
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        containerColor = Color(0xFF1E1E1E),
+        containerColor = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp)
     )
 }

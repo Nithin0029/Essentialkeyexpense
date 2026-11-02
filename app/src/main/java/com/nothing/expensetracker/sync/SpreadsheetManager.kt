@@ -328,7 +328,7 @@ class SpreadsheetManager @Inject constructor(
             val now = java.text.SimpleDateFormat("dd-MMM-yyyy HH:mm", Locale.getDefault()).format(Date())
             val rowValues = listOf(
                 friend.id.toString(),
-                friend.name,
+                sheetSafeText(friend.name),
                 balance.totalDebit.toString(),
                 balance.totalCredit.toString(),
                 balance.outstandingBalance.toString(),
@@ -370,7 +370,7 @@ class SpreadsheetManager @Inject constructor(
             val now = java.text.SimpleDateFormat("dd-MMM-yyyy HH:mm", Locale.getDefault()).format(Date())
             val rowValues = listOf(
                 friend.id.toString(),
-                friend.name,
+                sheetSafeText(friend.name),
                 "0", "0", "0", "Settled", now
             )
             val body = ValueRange().setValues(listOf(rowValues))
@@ -907,7 +907,7 @@ class SpreadsheetManager @Inject constructor(
         try {
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val formattedDate = dateFormat.format(Date(transaction.timestamp))
-            val rowValues = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, transaction.category, transaction.amount.toString(), transaction.paymentMethod, transaction.friendId ?: "", transaction.notes, transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", transaction.description))
+            val rowValues = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, sheetSafeText(transaction.category), transaction.amount.toString(), sheetSafeText(transaction.paymentMethod), sheetSafeText(transaction.friendId ?: ""), sheetSafeText(transaction.notes), transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", sheetSafeText(transaction.description)))
             val body = ValueRange().setValues(rowValues)
             val response = service.spreadsheets().values().append(spreadsheetId, "Transactions!A2", body).setValueInputOption("USER_ENTERED").execute()
             if (response != null && response.updates?.updatedRows != null && response.updates.updatedRows > 0) {
@@ -928,7 +928,7 @@ class SpreadsheetManager @Inject constructor(
             if (rowIndex == null) return@withContext false
             val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
             val formattedDate = dateFormat.format(Date(transaction.timestamp))
-            val values = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, transaction.category, transaction.amount.toString(), transaction.paymentMethod, transaction.friendId ?: "", transaction.notes, transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", transaction.description))
+            val values = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, sheetSafeText(transaction.category), transaction.amount.toString(), sheetSafeText(transaction.paymentMethod), sheetSafeText(transaction.friendId ?: ""), sheetSafeText(transaction.notes), transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", sheetSafeText(transaction.description)))
             val body = ValueRange().setValues(values)
             service.spreadsheets().values().update(spreadsheetId, "Transactions!A$rowIndex:L$rowIndex", body).setValueInputOption("USER_ENTERED").execute()
             true

@@ -1,0 +1,31 @@
+# Line endings and binary handling.
+#
+# core.autocrlf is set to true on this machine, which keeps the repository LF
+# and the working copy CRLF. That works until someone clones with a different
+# setting, so the rules live here instead: committed in the repo, identical for
+# everyone, and not dependent on anybody's local git config.
+
+# Normalise text to LF in the repository; check out whatever the platform uses.
+* text=auto
+
+# These must stay LF in the *working copy* as well. A gradlew with CRLF fails on
+# Linux and macOS with "bad interpreter: No such file or directory", which is
+# exactly how a repository that builds fine on Windows breaks in CI.
+gradlew        text eol=lf
+*.sh           text eol=lf
+*.properties   text eol=lf
+
+# Windows batch files need CRLF to be safe.
+*.bat          text eol=crlf
+
+# Never normalise, never diff as text.
+*.png          binary
+*.webp         binary
+*.jpg          binary
+*.jpeg         binary
+*.ico          binary
+*.jar          binary
+*.apk          binary
+*.aab          binary
+*.jks          binary
+*.keystore     binary

@@ -112,7 +112,7 @@ fun ReportsScreen(
                 EmptyReportsState()
             } else {
                 // 2. Summary Cards — the headline numbers first.
-                SummaryCardsRow(summary = uiState.summary)
+                SummaryCardsRow(summary = uiState.summary, comparison = uiState.comparison)
 
                 // 3. Insights — the "so what" of this period, surfaced right after the numbers
                 // instead of buried at the bottom of a long scroll.
@@ -125,9 +125,30 @@ fun ReportsScreen(
                 // 4. Expense by Category — the single most useful drill-down, promoted above the
                 // supporting charts. Donut + full ranked list combined (previously two separate
                 // cards duplicated the same ranking as a legend and as a list).
+                if (uiState.trend.size > 1) {
+                    ReportCard(title = "Last 6 Months") {
+                        MonthlyTrendSection(trend = uiState.trend)
+                    }
+                }
+
+                if (uiState.pace.isPartial) {
+                    ReportCard(title = "Spending Pace") {
+                        SpendingPaceSection(pace = uiState.pace)
+                    }
+                }
+
                 if (uiState.categoryReports.isNotEmpty()) {
                     ReportCard(title = "Expense by Category") {
-                        CategoryBreakdownSection(reports = uiState.categoryReports)
+                        CategoryBreakdownSection(
+                            reports = uiState.categoryReports,
+                            comparisonLabel = uiState.comparison.label
+                        )
+                    }
+                }
+
+                if (uiState.weekdayPattern.isNotEmpty()) {
+                    ReportCard(title = "By Day of Week") {
+                        WeekdayPatternSection(points = uiState.weekdayPattern)
                     }
                 }
 
@@ -218,7 +239,7 @@ fun DateFilterSection(
 }
 
 @Composable
-fun SummaryCardsRow(summary: SummaryData) {
+fun SummaryCardsRow(summary: SummaryData, comparison: PeriodComparison = PeriodComparison()) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SummaryCard(
@@ -226,6 +247,11 @@ fun SummaryCardsRow(summary: SummaryData) {
                 amount = summary.income,
                 icon = Icons.AutoMirrored.Filled.TrendingUp,
                 iconColor = Color(0xFF4CAF50),
+                // More income is good, more spending is not, so the two cards read their
+                // direction oppositely rather than sharing one colour rule.
+                change = comparison.incomeChange(summary.income),
+                changeLabel = comparison.label,
+                higherIsWorse = false,
                 modifier = Modifier.weight(1f)
             )
             SummaryCard(
@@ -233,6 +259,9 @@ fun SummaryCardsRow(summary: SummaryData) {
                 amount = summary.expense,
                 icon = Icons.AutoMirrored.Filled.TrendingDown,
                 iconColor = Color(0xFFF44336),
+                change = comparison.expenseChange(summary.expense),
+                changeLabel = comparison.label,
+                higherIsWorse = true,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -263,7 +292,11 @@ fun SummaryCard(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconColor: Color,
     modifier: Modifier = Modifier,
-    isCurrency: Boolean = true
+    isCurrency: Boolean = true,
+    /** Percent change against the preceding period, or null when there is nothing to compare. */
+    change: Int? = null,
+    changeLabel: String = "",
+    higherIsWorse: Boolean = true
 ) {
     Card(
         modifier = modifier,
@@ -283,6 +316,10 @@ fun SummaryCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            if (change != null && changeLabel.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                ChangeChip(percent = change, label = changeLabel, higherIsWorse = higherIsWorse)
+            }
         }
     }
 }
@@ -336,6 +373,208 @@ fun ChartBar(height: Float, color: Color, label: String) {
     }
 }
 
+/**
+ * Income against spending for the last six months.
+ *
+ * Every other section on this page describes one period in isolation, which cannot answer the
+ * question a report exists to answer: is this month normal for me? Six bars is enough to see a
+ * direction without crowding a phone screen.
+ */
+@Composable
+fun MonthlyTrendSection(trend: List<TrendPoint>) {
+    val maxValue = trend.maxOfOrNull { maxOf(it.income, it.expense) }?.coerceAtLeast(1.0) ?: 1.0
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(140.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            trend.forEach { point ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Bottom,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        TrendBar(
+                            fraction = (point.income / maxValue).toFloat(),
+                            color = Color(0xFF4CAF50),
+                            dimmed = !point.isCurrent
+                        )
+                        TrendBar(
+                            fraction = (point.expense / maxValue).toFloat(),
+                            color = Color(0xFFF44336),
+                            dimmed = !point.isCurrent
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = point.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (point.isCurrent) MaterialTheme.colorScheme.onSurface else Color.Gray,
+                        fontWeight = if (point.isCurrent) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            LegendDot(Color(0xFF4CAF50), "Income")
+            LegendDot(Color(0xFFF44336), "Spending")
+        }
+    }
+}
+
+@Composable
+private fun TrendBar(fraction: Float, color: Color, dimmed: Boolean) {
+    // Same fixed-height track as ChartBar: a fraction needs a concrete height to resolve against.
+    Box(
+        modifier = Modifier.width(13.dp).height(110.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(fraction.coerceIn(0.02f, 1f))
+                .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                .background(if (dimmed) color.copy(alpha = 0.45f) else color)
+        )
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+    }
+}
+
+/**
+ * Burn rate and where the period lands at the current rate.
+ *
+ * The projection is linear, which is wrong for a month front-loaded with rent — so the daily
+ * average sits beside it, and the wording stays conditional. It is a prompt to look, not a
+ * forecast to rely on, and for the first fifth of the period it is not shown at all.
+ */
+@Composable
+fun SpendingPaceSection(pace: SpendingPace) {
+    Column {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Column {
+                Text("Per day so far", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                Text(
+                    formatCurrency(pace.dailyAverage),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("At this rate", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                // Withheld for the first fifth of the period: one rent payment on the 1st
+                // projected to a figure nobody should read, and printing it in the same bold
+                // treatment as the real numbers lent it an authority it has not earned.
+                if (pace.isProjectionMeaningful) {
+                    Text(
+                        formatCurrency(pace.projectedTotal),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                } else {
+                    Text(
+                        "too early to say",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        LinearProgressIndicator(
+            progress = { pace.daysElapsed.toFloat() / pace.daysInPeriod.toFloat() },
+            modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = Color.Gray.copy(alpha = 0.25f)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "Day ${pace.daysElapsed} of ${pace.daysInPeriod}",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray
+        )
+    }
+}
+
+/** Which days of the week cost the most, across the selected period. */
+@Composable
+fun WeekdayPatternSection(points: List<WeekdayPoint>) {
+    val maxValue = points.maxOfOrNull { it.amount }?.coerceAtLeast(1.0) ?: 1.0
+    Row(
+        modifier = Modifier.fillMaxWidth().height(110.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Bottom
+    ) {
+        points.forEach { point ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier.width(22.dp).height(80.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .fillMaxHeight((point.amount / maxValue).toFloat().coerceIn(0.02f, 1f))
+                            .clip(RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp))
+                            .background(
+                                if (point.isHeaviest) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                            )
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    point.label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (point.isHeaviest) MaterialTheme.colorScheme.onSurface else Color.Gray
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A change indicator, e.g. "↑ 23% vs last month".
+ *
+ * Colour is deliberately not applied to income: more income is good, more spending is not, and a
+ * single shared green/red would read backwards on one of them.
+ */
+@Composable
+fun ChangeChip(percent: Int, label: String, higherIsWorse: Boolean) {
+    val rising = percent > 0
+    val tint = when {
+        percent == 0 -> Color.Gray
+        rising == higherIsWorse -> Color(0xFFF44336)
+        else -> Color(0xFF4CAF50)
+    }
+    val arrow = if (percent == 0) "" else if (rising) "↑ " else "↓ "
+    Text(
+        text = "$arrow${kotlin.math.abs(percent)}% vs $label",
+        style = MaterialTheme.typography.labelSmall,
+        color = tint
+    )
+}
+
 /** Category color palette shared by the donut chart and its ranked list below, so a category's
  *  dot color always matches its arc — the two views are one visual, not two disconnected ones. */
 val categoryChartColors = listOf(
@@ -349,7 +588,7 @@ val categoryChartColors = listOf(
 )
 
 @Composable
-fun CategoryBreakdownSection(reports: List<CategoryReport>) {
+fun CategoryBreakdownSection(reports: List<CategoryReport>, comparisonLabel: String = "") {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.size(150.dp)) {
@@ -394,6 +633,11 @@ fun CategoryBreakdownSection(reports: List<CategoryReport>) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.Gray
                             )
+                        }
+                        // Only shown where there is a real basis for comparison; a category with
+                        // no spending last period would otherwise read as a 100% rise.
+                        report.changePercent?.let { change ->
+                            ChangeChip(percent = change, label = comparisonLabel, higherIsWorse = true)
                         }
                     }
                     Text(

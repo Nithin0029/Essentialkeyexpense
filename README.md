@@ -124,6 +124,27 @@ transactions would go — but treat it carefully.
 
 ---
 
+## Licence and credit
+
+Released under the [MIT licence](LICENSE). You are welcome to use this — fork it, learn from it,
+build on it, ship your own version.
+
+**What the licence requires.** MIT is permissive but not public domain. If you redistribute this
+code or a modified version of it, you must keep the copyright notice and the licence text. That
+requirement is binding, and it applies to a compiled APK just as much as to source.
+
+**What is asked beyond that.** If you build something on this, credit it visibly rather than only
+in a file nobody opens — a line in your README, your app's about screen, or your store listing,
+linking back to this repository. Taking the work and presenting it as entirely your own is within
+neither the spirit of the licence nor the point of publishing it.
+
+If you do build something with it, I would genuinely like to see it. Open an issue and say so.
+
+Suggested wording:
+
+> Based on [Essential Expense Tracker](https://github.com/Nithin0029/Essentialkeyexpense)
+> by Nithelan Jayakumar, MIT licensed.
+
 ## Privacy
 
 There is no server and no analytics. Data lives in Room on your device and in a Google Sheet in
