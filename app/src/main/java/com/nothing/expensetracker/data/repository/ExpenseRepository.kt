@@ -154,6 +154,12 @@ class ExpenseRepository @Inject constructor(
         return categoryDao.getCategoryByNameCaseInsensitive(name.trim())
     }
 
+    /** Matches soft-deleted rows as well. The restore uses this so a category the user deleted
+     *  is not re-created from a sheet row whose own deletion has not been pushed yet. */
+    suspend fun getCategoryByNameAnyStatus(name: String): Category? {
+        return categoryDao.getCategoryByNameAnyStatus(name.trim())
+    }
+
     suspend fun getCategoryById(id: Long): Category? = categoryDao.getCategoryById(id)
 
     suspend fun deleteCategoryAndMoveTransactions(category: Category, replacementCategoryName: String) {
@@ -390,6 +396,10 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun getFriendByNameCaseInsensitive(name: String) =
         friendDao.getFriendByNameCaseInsensitive(name.trim())
+
+    /** Soft-deleted friends included, for the same reason as [getCategoryByNameAnyStatus]. */
+    suspend fun getFriendByNameAnyStatus(name: String) =
+        friendDao.getFriendByNameAnyStatus(name.trim())
 
     suspend fun insertRestoredFriend(friend: com.nothing.expensetracker.data.local.Friend) {
         friendDao.insertFriend(friend.copy(syncStatus = "Synced"))

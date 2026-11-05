@@ -22,6 +22,11 @@ interface FriendDao {
     @Query("SELECT * FROM friends WHERE LOWER(name) = LOWER(:name) AND syncStatus != 'Deleted' LIMIT 1")
     suspend fun getFriendByNameCaseInsensitive(name: String): Friend?
 
+    /** Unlike [getFriendByNameCaseInsensitive], also matches soft-deleted rows, so a restore
+     *  cannot re-create a friend the user deleted while the deletion is still queued. */
+    @Query("SELECT * FROM friends WHERE LOWER(name) = LOWER(:name) LIMIT 1")
+    suspend fun getFriendByNameAnyStatus(name: String): Friend?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFriend(friend: Friend): Long
 

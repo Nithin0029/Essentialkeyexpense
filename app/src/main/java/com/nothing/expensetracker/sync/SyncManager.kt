@@ -168,6 +168,13 @@ class SyncManager @Inject constructor(
             Log.e(tag, "[SYNC] Failed to push payment methods / autopay rules", e)
         }
 
+        // Last, so the version and timestamp it records describe the cycle that just finished.
+        try {
+            spreadsheetManager.syncAppMetadataToSheet()
+        } catch (e: Exception) {
+            Log.e(tag, "[SYNC] METADATA | Failed to push sheet metadata", e)
+        }
+
         Log.i(tag, "[SYNC] Global sync cycle completed")
     }
 }

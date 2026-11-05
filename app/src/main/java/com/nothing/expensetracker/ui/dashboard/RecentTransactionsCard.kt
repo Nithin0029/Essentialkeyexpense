@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 import com.nothing.expensetracker.data.local.Expense
@@ -106,7 +107,13 @@ private fun TransactionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // The left side takes the space that is left after the amount, rather than all it
+        // wants: without the weight a long note pushed the amount down to a few pixels wide and
+        // Compose wrapped it one character per line. The History card already does this.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -133,7 +140,8 @@ private fun TransactionRow(
                         text = notes,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -157,11 +165,15 @@ private fun TransactionRow(
                 }
             }
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        // An amount is never worth breaking: it keeps its full width and the note gives way.
         Text(
             text = amount,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = amountColor
+            color = amountColor,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }
