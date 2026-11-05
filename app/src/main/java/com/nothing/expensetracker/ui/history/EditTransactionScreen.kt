@@ -276,7 +276,10 @@ fun EditTransactionContent(
             onExpandedChange = { categoryExpanded = !categoryExpanded }
         ) {
             OutlinedTextField(
-                value = category,
+                // `category` holds the leaf - the subcategory, once one is chosen - because that
+                // is the single name a transaction stores. This field has to show the parent, or
+                // choosing "Fitness" under "Me" left both boxes reading "Fitness".
+                value = selectedTopLevel?.name ?: category,
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Category") },

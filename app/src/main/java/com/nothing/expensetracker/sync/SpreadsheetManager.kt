@@ -11,7 +11,9 @@ import com.google.api.services.sheets.v4.SheetsScopes
 import com.google.api.services.sheets.v4.model.*
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.model.FileList
+import com.nothing.expensetracker.BuildConfig
 import com.nothing.expensetracker.data.local.AppPrefs
+import com.nothing.expensetracker.data.local.DATABASE_VERSION
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +56,52 @@ private const val PRUNE_SAFETY_MINIMUM = 20
 /** Settings-tab row keys, shared between the write and restore paths. */
 private const val OPENING_BANK_KEY = "Opening Bank Balance"
 private const val OPENING_CASH_KEY = "Opening Cash Balance"
+
+/**
+ * The layout version of the spreadsheet this app writes: which tabs exist and what columns they
+ * carry. Reported to the App_Metadata tab so a sheet can say what shape it is in.
+ *
+ * **Bump this whenever a tab or a column is added, removed or reordered.** A unit test
+ * fingerprints the header map and fails until this number and the recorded fingerprint agree -
+ * the value is only worth having if a future migration can trust it, and the previous value, a
+ * hardcoded "1", survived two whole tabs being added without anyone noticing.
+ *
+ * - 1: the original five tabs.
+ * - 2: Payment_Methods and Autopay tabs; Description on Transactions; Parent/Debit/Credit
+ *      columns on Categories; Alert Threshold on Budgets.
+ */
+internal const val SHEET_SCHEMA_VERSION = 2
+
+/**
+ * Merges new key/value pairs over the rows a two-column tab already holds.
+ *
+ * Order is preserved and rows this app does not own are copied through untouched, so correcting
+ * "App Version" on a sheet created years ago leaves "Created Date" exactly where it was. Keys
+ * that are not there yet are appended at the end.
+ *
+ * Pure and top level so it can be tested without a Sheets service - this is the half that decides
+ * whether an existing sheet is corrected or merely appended to, which is the bug it exists to fix.
+ */
+internal fun mergeKeyValueRows(
+    existing: List<List<Any>>,
+    values: Map<String, String>
+): List<List<Any>> {
+    val rows = mutableListOf<List<Any>>()
+    val replaced = mutableSetOf<String>()
+
+    existing.forEach { row ->
+        val key = row.firstOrNull()?.toString().orEmpty()
+        val incoming = values[key]
+        if (incoming != null) {
+            rows.add(listOf(key, incoming))
+            replaced.add(key)
+        } else {
+            rows.add(listOf(key, row.getOrNull(1)?.toString().orEmpty()))
+        }
+    }
+    values.forEach { (key, value) -> if (key !in replaced) rows.add(listOf(key, value)) }
+    return rows
+}
 
 @Singleton
 class SpreadsheetManager @Inject constructor(
@@ -399,10 +447,12 @@ class SpreadsheetManager @Inject constructor(
         )
         ensureSheetData(service, spreadsheetId, "Settings", settings)
 
+        // Only "Created Date" is genuinely write-once; the rest are kept current by
+        // syncAppMetadataToSheet on every cycle, and seeded here so a new sheet is never wrong.
         val metadata = mapOf(
-            "Schema Version" to "1",
-            "App Version" to "2.0.0",
-            "Database Version" to "1",
+            "Schema Version" to SHEET_SCHEMA_VERSION.toString(),
+            "App Version" to BuildConfig.VERSION_NAME,
+            "Database Version" to DATABASE_VERSION.toString(),
             "Created Date" to now,
             "Last Updated" to now
         )
@@ -989,6 +1039,64 @@ class SpreadsheetManager @Inject constructor(
     }
 
     /**
+     * Writes key/value rows to a two-column tab: keys already present are updated in place, the
+     * rest are appended. One read and one write for the whole set rather than a lookup per key.
+     */
+    private fun writeKeyValueRows(
+        service: Sheets,
+        spreadsheetId: String,
+        sheetName: String,
+        values: Map<String, String>
+    ) {
+        val existing = service.spreadsheets().values()[spreadsheetId, "$sheetName!A2:B"]
+            .execute().getValues().orEmpty()
+
+        val rows = mergeKeyValueRows(existing, values)
+        if (rows.isEmpty()) return
+
+        service.spreadsheets().values()
+            .update(spreadsheetId, "$sheetName!A2:B${rows.size + 1}", ValueRange().setValues(rows))
+            .setValueInputOption("RAW")
+            .execute()
+    }
+
+    /**
+     * Pushes the App_Metadata tab and the Settings "Last Sync" row.
+     *
+     * These were written once, when the spreadsheet was created, by a path that only appends keys
+     * that are *absent* - so "App Version" stayed at the literal "2.0.0" for the life of every
+     * sheet, "Schema Version" stayed at 1 through two tabs being added, and "Last Sync" read
+     * "Never" forever. Nothing in the app reads them, which is precisely why they rotted
+     * unnoticed; the moment a migration keys off Schema Version they have to be true.
+     *
+     * Called at the end of each sync cycle, so the values describe the cycle that just finished.
+     */
+    suspend fun syncAppMetadataToSheet(): Boolean = withContext(Dispatchers.IO) {
+        val service = getSheetsService() ?: return@withContext false
+        val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
+        val now = java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+            .format(Date())
+
+        return@withContext try {
+            writeKeyValueRows(
+                service, spreadsheetId, "App_Metadata",
+                linkedMapOf(
+                    "Schema Version" to SHEET_SCHEMA_VERSION.toString(),
+                    "App Version" to BuildConfig.VERSION_NAME,
+                    "Database Version" to DATABASE_VERSION.toString(),
+                    "Last Updated" to now
+                )
+            )
+            writeKeyValueRows(service, spreadsheetId, "Settings", linkedMapOf("Last Sync" to now))
+            Log.i(tag, "[METADATA] app ${BuildConfig.VERSION_NAME}, sheet schema $SHEET_SCHEMA_VERSION, db $DATABASE_VERSION")
+            true
+        } catch (e: Exception) {
+            Log.e(tag, "[METADATA] Failed to update sheet metadata", e)
+            false
+        }
+    }
+
+    /**
      * Pushes the opening balances to the Settings tab.
      *
      * These live in app preferences rather than the database, so without this they are the one
@@ -1272,7 +1380,12 @@ class SpreadsheetManager @Inject constructor(
         if (name.isEmpty()) return false
         // Matched by name, not id: names are what transactions reference, and the local
         // default-category seed will have created its own ids already.
-        if (repository.getCategoryByNameCaseInsensitive(name) != null) return false
+        //
+        // Any status, including soft-deleted. A category the user has just deleted is still in
+        // the sheet until that deletion is pushed, so matching only live rows re-created it here
+        // as "Synced" - which both brought it back in the pickers and dropped it out of the
+        // deletion queue, making it permanent. ensureDefaultCategories already learned this.
+        if (repository.getCategoryByNameAnyStatus(name) != null) return false
 
         repository.insertRestoredCategory(
             com.nothing.expensetracker.data.local.Category(
@@ -1291,7 +1404,8 @@ class SpreadsheetManager @Inject constructor(
         rows.forEach { row ->
             val name = row.cell(1)
             if (name.isEmpty()) return@forEach
-            if (repository.getFriendByNameCaseInsensitive(name) != null) return@forEach
+            // Any status, so a deleted friend is not resurrected - see insertCategoryRow.
+            if (repository.getFriendByNameAnyStatus(name) != null) return@forEach
             // Balance columns are recomputed from the restored transactions, so only the
             // identity is taken from the sheet.
             repository.insertRestoredFriend(

@@ -73,6 +73,16 @@ They must agree, or the updater misbehaves.
 
 `versionCode` must strictly increase; the updater compares it against `BuildConfig.VERSION_CODE`.
 
+**If the release touched the spreadsheet layout** — a tab added or removed, a column added,
+renamed or reordered — also bump `SHEET_SCHEMA_VERSION` in `SpreadsheetManager.kt` and update
+`expectedLayout` in `SheetSchemaTest`. You will not forget this: the test fails the build until
+both agree. Columns are appended at the end on purpose, so existing sheets keep their old rows
+aligned; adding one anywhere else rewrites history in every user's spreadsheet.
+
+The app version and the Room version in `App_Metadata` need no attention. They are read from
+`BuildConfig.VERSION_NAME` and `DATABASE_VERSION`, and a test fails if either goes back to being
+a literal.
+
 ### 2. Build the signed APK
 
 ```bash
@@ -117,9 +127,29 @@ actually reads:
 curl -s https://raw.githubusercontent.com/Nithin0029/Essentialkeyexpense/master/version.json
 ```
 
+### 6. Confirm the spreadsheet caught up
+
+Install the release build on a signed-in device, open the app, and let one sync cycle run. Then
+open the spreadsheet and check the **App_Metadata** tab:
+
+| Key | Should read |
+|---|---|
+| App Version | the version you just shipped |
+| Schema Version | `SHEET_SCHEMA_VERSION` |
+| Database Version | `DATABASE_VERSION` |
+| Last Updated | today |
+
+and **Settings → Last Sync** should no longer say `Never`.
+
+This is the step that catches a release where the app is fine and the sheet is not. Every one of
+those values was wrong for the app's entire life before 3.7.1 — written once at creation and
+never again — and nothing noticed, because nothing in the app reads them. They are now pushed at
+the end of every sync cycle, which means if they are stale after a sync, the sync itself failed
+and the only visible symptom is here.
+
 ---
 
-## This release (3.6.0) is a breaking one
+## 3.6.0 was a breaking release
 
 The signing key changes, so **existing installs cannot be upgraded in place**. Android rejects an
 APK signed with a different key, and users see "App not installed". The in-app updater cannot help

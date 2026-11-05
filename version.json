@@ -1,14 +1,13 @@
 {
-  "versionCode": 370,
-  "versionName": "3.7.0",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.7.0/EssentialExpenseTracker-v3.7.0.apk",
+  "versionCode": 371,
+  "versionName": "3.7.1",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.7.1/EssentialExpenseTracker-v3.7.1.apk",
   "releaseNotes": [
-    "Reports now compares periods: a six-month income and spending trend, how your spending is tracking against the rest of the month, and a change figure on every total and category that compares like for like - two days into a month are measured against the first two days of the last one, not against the whole of it",
-    "A new day-of-the-week breakdown showing which days cost you most",
-    "Money paid into investments is no longer counted as spending - your past expense totals may now read lower than before, which is the correction, not a loss of data",
-    "Investments still come off your balance, because the money has left your account",
-    "Fewer categories out of the box. Unused ones you never touched were removed; any category you have actually recorded against is kept, with all its transactions",
-    "Upgrading from 3.6.0 installs over the top - no uninstall needed. From 3.5.0 or earlier you must still uninstall first, after syncing"
+    "Fixed: a transaction with a long note broke the Dashboard list - the amount was printed one digit per line down the side of the screen",
+    "Fixed: choosing a subcategory renamed the category above it, so picking Fitness under Me left both boxes reading Fitness",
+    "Fixed: a category you deleted could come back on the next launch. The restore was re-creating it from the spreadsheet before your deletion had been sent, and it came back permanently",
+    "Your spreadsheet's App_Metadata tab now reports the truth. It had claimed app version 2.0.0 and schema version 1 since the day it was created, and Last Sync had read Never on every sheet ever made",
+    "Installs over the top of 3.6.0 or 3.7.0. From 3.5.0 or earlier you must still uninstall first, after syncing"
   ],
   "forceUpdate": false
 }
