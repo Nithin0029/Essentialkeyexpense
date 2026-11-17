@@ -313,6 +313,19 @@ class ExpenseRepository @Inject constructor(
 
     fun getPaymentMethodNames() = paymentMethodDao.getAllPaymentMethods().map { list -> list.map { it.name } }
 
+    /**
+     * Method name to the name of the account it spends from, for methods that draw on one.
+     *
+     * Keyed by name because that is what a transaction stores, and because the pickers that show
+     * this have a name in hand rather than a row. A method that holds its own balance is absent.
+     */
+    fun getPaymentMethodFunding() = paymentMethodDao.getAllPaymentMethods().map { list ->
+        val byId = list.associateBy { it.id }
+        list.mapNotNull { method ->
+            method.fundedById?.let { byId[it] }?.let { method.name to it.name }
+        }.toMap()
+    }
+
     suspend fun insertPaymentMethod(method: PaymentMethod) {
         paymentMethodDao.insertPaymentMethod(method)
     }
@@ -355,9 +368,92 @@ class ExpenseRepository @Inject constructor(
         val currentCount = paymentMethodDao.countPaymentMethods()
         if (currentCount > 0) return
 
-        listOf("UPI", "Cash", "Bank").forEach { name ->
-            paymentMethodDao.insertPaymentMethod(PaymentMethod(name = name, isSystem = true))
+        // Bank first, so UPI can be pointed at it. A fresh install must end up in exactly the
+        // shape MIGRATION_16_17 leaves an upgraded one: two accounts, and UPI drawing on the bank.
+        val bankId = paymentMethodDao.insertPaymentMethod(
+            PaymentMethod(name = "Bank", isSystem = true)
+        )
+        paymentMethodDao.insertPaymentMethod(PaymentMethod(name = "Cash", isSystem = true))
+        paymentMethodDao.insertPaymentMethod(
+            PaymentMethod(name = "UPI", isSystem = true, fundedById = bankId.takeIf { it > 0 })
+        )
+    }
+
+    /** Per-method credit and debit totals, the input to [rollUpAccountBalances]. */
+    fun getTotalsByPaymentMethod() = expenseDao.getTotalsByPaymentMethod()
+
+    suspend fun getPaymentMethodsOnce() = paymentMethodDao.getAllPaymentMethodsOnce()
+
+    suspend fun setAccountOpeningBalance(id: Long, balance: Double) =
+        paymentMethodDao.setOpeningBalance(id, balance)
+
+    /** Account balances as they stand right now, computed the same way the Dashboard does. */
+    suspend fun getAccountRollUpOnce(): AccountRollUp = rollUpAccountBalances(
+        paymentMethodDao.getAllPaymentMethodsOnce(),
+        expenseDao.getTotalsByPaymentMethodOnce()
+    )
+
+    /**
+     * Sets what an account holds *today*, storing the opening balance that implies.
+     *
+     * Asking for today's figure rather than the opening one is deliberate and predates accounts:
+     * nobody remembers what their account held before their first recorded transaction, and after
+     * a restore the opening value is gone anyway. Today's balance is something you can read off
+     * your banking app, so that is what the UI asks for and this works backwards from it.
+     */
+    suspend fun setAccountBalanceToday(accountId: Long, balanceToday: Double): Boolean {
+        val account = getAccountRollUpOnce().accounts.find { it.id == accountId } ?: return false
+        paymentMethodDao.setOpeningBalance(
+            accountId,
+            balanceToday - (account.credits - account.debits)
+        )
+        return true
+    }
+
+    /** Sets an account's opening balance directly, by name. Used by the spreadsheet restore. */
+    suspend fun setAccountOpeningBalanceByName(name: String, opening: Double): Boolean {
+        val method = paymentMethodDao.getByNameCaseInsensitive(name.trim()) ?: return false
+        paymentMethodDao.setOpeningBalance(method.id, opening)
+        return true
+    }
+
+    /** Sets an account's balance by name, for the onboarding prompt's Bank and Cash fields. */
+    suspend fun setAccountBalanceTodayByName(name: String, balanceToday: Double): Boolean {
+        val account = getAccountRollUpOnce().accounts
+            .find { it.name.equals(name, ignoreCase = true) } ?: return false
+        return setAccountBalanceToday(account.id, balanceToday)
+    }
+
+    /** Points a payment method at the account it draws on, or makes it an account itself. */
+    suspend fun setFundingAccount(method: PaymentMethod, fundedById: Long?) {
+        paymentMethodDao.updatePaymentMethod(method.copy(fundedById = fundedById))
+    }
+
+    /**
+     * Moves the two opening balances out of preferences and onto the accounts they describe.
+     *
+     * Opening balances predate accounts and live in `SharedPreferences`, which a Room migration
+     * cannot read — so the column arrives empty and this fills it on the next launch. Returns
+     * whether it had anything to do, so the caller can record that it is finished and stop asking.
+     *
+     * Only touches an account still sitting at zero. Someone who has already typed a balance into
+     * the new screen must not have it overwritten by a stale preference.
+     */
+    suspend fun backfillAccountOpeningBalances(bank: Double, cash: Double): Boolean {
+        if (bank == 0.0 && cash == 0.0) return false
+        var changed = false
+        paymentMethodDao.getAllPaymentMethodsOnce().forEach { method ->
+            if (!method.isAccount || method.openingBalance != 0.0) return@forEach
+            val carried = when (method.name.trim().lowercase()) {
+                "bank" -> bank
+                "cash" -> cash
+                else -> return@forEach
+            }
+            if (carried == 0.0) return@forEach
+            paymentMethodDao.setOpeningBalance(method.id, carried)
+            changed = true
         }
+        return changed
     }
 
     fun getAllCategories() = categoryDao.getAllCategories().map { list -> list.map { it.name } }

@@ -57,7 +57,7 @@ class SheetSchemaTest {
         "Budgets" to listOf("Budget ID", "Category", "Amount", "Month", "Year", "Alert Threshold"),
         "Settings" to listOf("Setting", "Value"),
         "App_Metadata" to listOf("Key", "Value"),
-        "Payment_Methods" to listOf("Name", "Is System"),
+        "Payment_Methods" to listOf("Name", "Is System", "Opening Balance", "Funded By"),
         "Autopay" to listOf(
             "Rule ID", "Description", "Category", "Type", "Amount",
             "Payment Method", "Friend Name", "Day Of Month", "Active", "Last Run Month"

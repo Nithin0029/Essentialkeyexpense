@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
@@ -22,9 +24,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.PaymentMethod
+import com.nothing.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -36,6 +41,7 @@ fun PaymentMethodManagementScreen(
     val uiState by viewModel.uiState.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var methodForBalance by remember { mutableStateOf<PaymentMethod?>(null) }
     var methodToEdit by remember { mutableStateOf<PaymentMethod?>(null) }
 
     // Deletion Flow State
@@ -97,7 +103,10 @@ fun PaymentMethodManagementScreen(
                     ) { method ->
                         PaymentMethodItem(
                             method = method,
+                            balance = uiState.balances[method.id],
+                            fundedByName = uiState.nameOf(method.fundedById),
                             onEditClick = { methodToEdit = method },
+                            onEditBalanceClick = { methodForBalance = method },
                             onDeleteClick = { methodToDelete = method }
                         )
                     }
@@ -106,12 +115,25 @@ fun PaymentMethodManagementScreen(
         }
     }
 
+    if (methodForBalance != null) {
+        val target = methodForBalance!!
+        AccountBalanceDialog(
+            accountName = target.name,
+            currentBalance = uiState.balances[target.id] ?: 0.0,
+            onDismiss = { methodForBalance = null },
+            onConfirm = { amount, onResult ->
+                viewModel.setBalanceToday(target, amount, onResult)
+            }
+        )
+    }
+
     if (showAddDialog) {
         PaymentMethodDialog(
             title = "Add Payment Method",
+            accounts = uiState.accounts,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, onResult ->
-                viewModel.addPaymentMethod(name, onResult)
+            onConfirm = { name, fundedById, onResult ->
+                viewModel.addPaymentMethod(name, fundedById, onResult)
             }
         )
     }
@@ -120,8 +142,12 @@ fun PaymentMethodManagementScreen(
         PaymentMethodDialog(
             title = "Edit Payment Method",
             initialName = methodToEdit!!.name,
+            // Renaming only. Repointing an existing method at a different account would move
+            // history between balances, which deserves its own confirmation rather than a
+            // silent dropdown.
+            accounts = emptyList(),
             onDismiss = { methodToEdit = null },
-            onConfirm = { name, onResult ->
+            onConfirm = { name, _, onResult ->
                 viewModel.updatePaymentMethod(methodToEdit!!, name, onResult)
             }
         )
@@ -338,7 +364,12 @@ fun PaymentMethodManagementScreen(
 @Composable
 fun PaymentMethodItem(
     method: PaymentMethod,
+    /** This account's current balance, or null when the method draws on another. */
+    balance: Double?,
+    /** The account this method spends from, when it is not one itself. */
+    fundedByName: String?,
     onEditClick: () -> Unit,
+    onEditBalanceClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     Card(
@@ -382,6 +413,25 @@ fun PaymentMethodItem(
                         fontWeight = FontWeight.Medium
                     )
 
+                    // An account says what it holds; a method that draws on one says so instead,
+                    // because the money is in the account, however it happened to leave.
+                    Text(
+                        text = when {
+                            fundedByName != null -> "Draws on $fundedByName"
+                            balance != null -> formatCurrency(balance)
+                            else -> "No balance set"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (fundedByName != null) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        fontWeight = if (fundedByName == null) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
                     Surface(
                         color = if (method.isSystem) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                         shape = RoundedCornerShape(4.dp),
@@ -394,6 +444,17 @@ fun PaymentMethodItem(
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
+                }
+            }
+
+            if (method.isAccount) {
+                IconButton(onClick = onEditBalanceClick, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Set balance for ${method.name}",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
 
@@ -457,14 +518,19 @@ fun EmptyPaymentMethodsState() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PaymentMethodDialog(
     title: String,
     initialName: String = "",
+    /** Accounts this method could draw on. Empty hides the picker, as when renaming. */
+    accounts: List<PaymentMethod> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, (Boolean, String?) -> Unit) -> Unit
+    onConfirm: (String, Long?, (Boolean, String?) -> Unit) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
+    var fundedBy by remember { mutableStateOf<PaymentMethod?>(null) }
+    var fundingExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -487,6 +553,49 @@ fun PaymentMethodDialog(
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
+                if (accounts.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // A card or a wallet is not a place money sits — it spends from an account.
+                    // Saying so here is what stops its transactions landing in a second balance.
+                    ExposedDropdownMenuBox(
+                        expanded = fundingExpanded,
+                        onExpandedChange = { fundingExpanded = !fundingExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = fundedBy?.let { "Draws on ${it.name}" } ?: "Holds its own balance",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Where the money sits") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = fundingExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                        ExposedDropdownMenu(
+                            expanded = fundingExpanded,
+                            onDismissRequest = { fundingExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Holds its own balance") },
+                                onClick = {
+                                    fundedBy = null
+                                    fundingExpanded = false
+                                }
+                            )
+                            accounts.forEach { account ->
+                                DropdownMenuItem(
+                                    text = { Text("Draws on ${account.name}") },
+                                    onClick = {
+                                        fundedBy = account
+                                        fundingExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
                 if (error != null) {
                     Text(
                         text = error!!,
@@ -500,12 +609,93 @@ fun PaymentMethodDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(name) { success, message ->
+                    onConfirm(name, fundedBy?.id) { success, message ->
                         if (success) {
                             onDismiss()
                         } else {
                             error = message
                         }
+                    }
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
+}
+
+/**
+ * Asks what an account holds *today*, not what it opened with.
+ *
+ * Nobody remembers the balance before their first recorded transaction, and after restoring a
+ * history from the spreadsheet that number is gone anyway. Today's figure is one you can read off
+ * a banking app, and the opening balance is solved for from it.
+ */
+@Composable
+fun AccountBalanceDialog(
+    accountName: String,
+    currentBalance: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double, (Boolean, String?) -> Unit) -> Unit
+) {
+    var amount by remember { mutableStateOf(if (currentBalance == 0.0) "" else currentBalance.toString()) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Balance in $accountName", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column {
+                Text(
+                    text = "What is in this account right now? Everything you have already " +
+                        "recorded against it is taken into account.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = {
+                        amount = it
+                        error = null
+                    },
+                    label = { Text("Balance today") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = error != null,
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                if (error != null) {
+                    Text(
+                        text = error!!,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val parsed = amount.trim().toDoubleOrNull()
+                    if (parsed == null) {
+                        error = "Enter a number"
+                        return@Button
+                    }
+                    onConfirm(parsed) { success, message ->
+                        if (success) onDismiss() else error = message
                     }
                 }
             ) {

@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.nothing.expensetracker.data.local.PaymentMethod
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import com.nothing.expensetracker.data.repository.rollUpAccountBalances
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -15,8 +17,15 @@ import javax.inject.Inject
 
 data class PaymentMethodUiState(
     val methods: List<PaymentMethod> = emptyList(),
+    /** Current balance per account id, so each account row can show what it holds. */
+    val balances: Map<Long, Double> = emptyMap(),
     val isLoading: Boolean = true
-)
+) {
+    /** The methods that hold money, which are the only ones a balance can be set on. */
+    val accounts: List<PaymentMethod> get() = methods.filter { it.isAccount }
+
+    fun nameOf(id: Long?): String? = id?.let { methods.find { m -> m.id == it }?.name }
+}
 
 @HiltViewModel
 class PaymentMethodViewModel @Inject constructor(
@@ -24,11 +33,48 @@ class PaymentMethodViewModel @Inject constructor(
     private val spreadsheetManager: SpreadsheetManager
 ) : ViewModel() {
 
-    val uiState: StateFlow<PaymentMethodUiState> = repository.getPaymentMethods()
-        .map { PaymentMethodUiState(it, false) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PaymentMethodUiState())
+    val uiState: StateFlow<PaymentMethodUiState> = combine(
+        repository.getPaymentMethods(),
+        repository.getTotalsByPaymentMethod()
+    ) { methods, totals ->
+        val rollUp = rollUpAccountBalances(methods, totals)
+        PaymentMethodUiState(
+            methods = methods,
+            balances = rollUp.accounts.associate { it.id to it.balance },
+            isLoading = false
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PaymentMethodUiState())
 
-    fun addPaymentMethod(name: String, onResult: (Boolean, String?) -> Unit) {
+    /**
+     * Sets what an account holds today.
+     *
+     * The opening balance is solved for rather than typed, because today's figure is the one a
+     * user can actually read off their banking app.
+     */
+    fun setBalanceToday(method: PaymentMethod, balanceToday: Double, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            if (!method.isAccount) {
+                onResult(false, "${method.name} draws on another account, so it holds no balance of its own.")
+                return@launch
+            }
+            val ok = repository.setAccountBalanceToday(method.id, balanceToday)
+            onResult(ok, if (ok) null else "Could not update ${method.name}.")
+        }
+    }
+
+    /** Points a method at the account it spends from, or makes it hold money in its own right. */
+    fun setFundingAccount(method: PaymentMethod, fundedById: Long?) {
+        viewModelScope.launch {
+            if (fundedById == method.id) return@launch
+            repository.setFundingAccount(method, fundedById)
+        }
+    }
+
+    fun addPaymentMethod(
+        name: String,
+        fundedById: Long? = null,
+        onResult: (Boolean, String?) -> Unit
+    ) {
         val trimmedName = name.trim()
         if (trimmedName.isBlank()) {
             onResult(false, "Name cannot be empty")
@@ -39,7 +85,9 @@ class PaymentMethodViewModel @Inject constructor(
             if (existing != null) {
                 onResult(false, "Payment method already exists.")
             } else {
-                repository.insertPaymentMethod(PaymentMethod(name = trimmedName))
+                repository.insertPaymentMethod(
+                    PaymentMethod(name = trimmedName, fundedById = fundedById)
+                )
                 onResult(true, null)
             }
         }

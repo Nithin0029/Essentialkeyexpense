@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
 import com.nothing.expensetracker.data.local.Expense
+import com.nothing.expensetracker.data.repository.AccountBalance
 import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
@@ -82,8 +84,8 @@ fun DashboardScreen(
 
                     AssetsOverviewCard(
                         totalAssets = dashboardData.totalAssets,
-                        bankBalance = dashboardData.bankBalance,
-                        cashBalance = dashboardData.cashBalance
+                        accounts = dashboardData.accounts,
+                        unassignedNet = dashboardData.unassignedNet
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -228,8 +230,8 @@ fun DashboardHeader(isSynced: Boolean) {
 @Composable
 fun AssetsOverviewCard(
     totalAssets: Double,
-    bankBalance: Double,
-    cashBalance: Double
+    accounts: List<AccountBalance>,
+    unassignedNet: Double
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -254,41 +256,52 @@ fun AssetsOverviewCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            
-            Spacer(modifier = Modifier.height(20.dp))
-            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
-            Spacer(modifier = Modifier.height(20.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "Bank Balance",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray
-                    )
-                    Text(
-                        text = formatCurrency(bankBalance),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+            if (accounts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // One row per account rather than a fixed bank/cash pair. Two accounts still read
+                // as two lines; ten read as ten, which is the whole point of the change.
+                accounts.forEachIndexed { index, account ->
+                    if (index > 0) Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = account.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.Gray,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = formatCurrency(account.balance),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "Cash Balance",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.Gray
-                    )
-                    Text(
-                        text = formatCurrency(cashBalance),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+            }
+
+            // Said out loud rather than quietly dropped: before accounts existed, money on an
+            // unrecognised payment method simply never reached any balance and nothing said so.
+            if (unassignedNet != 0.0) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "${formatCurrency(unassignedNet)} is on a payment method that no " +
+                        "longer exists, so it is not counted above.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFFF44336)
+                )
             }
         }
     }

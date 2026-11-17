@@ -87,6 +87,20 @@ class AppPrefs @Inject constructor(
         _hasSetUpBalances.value = true
     }
 
+    /**
+     * Whether the two opening balances stored here have been copied onto their accounts.
+     *
+     * A one-shot migration rather than an invariant: once the accounts own the numbers, these
+     * preferences are history, and re-running the copy would overwrite whatever the user has
+     * since typed into the Payment Methods screen.
+     */
+    fun hasMigratedOpeningBalances(): Boolean =
+        prefs.getBoolean(KEY_OPENING_BALANCES_MIGRATED, false)
+
+    fun markOpeningBalancesMigrated() {
+        prefs.edit().putBoolean(KEY_OPENING_BALANCES_MIGRATED, true).apply()
+    }
+
     fun setOpeningCashBalance(balance: Double) {
         prefs.edit().putFloat("opening_cash_balance", balance.toFloat()).apply()
         _openingCashBalance.value = balance
@@ -111,5 +125,6 @@ class AppPrefs @Inject constructor(
 
     private companion object {
         const val KEY_BALANCES_SET_UP = "balances_set_up"
+        const val KEY_OPENING_BALANCES_MIGRATED = "opening_balances_migrated"
     }
 }
