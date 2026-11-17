@@ -108,6 +108,31 @@ object DatabaseModule {
         }
     }
 
+    /**
+     * Payment methods become accounts: each can hold an opening balance, or draw on one that does.
+     *
+     * UPI is pointed at Bank because that is precisely what the old balance queries did by
+     * matching `paymentMethod = 'UPI' OR paymentMethod = 'Bank'`. Preserving that link means every
+     * existing install's totals come out of the new roll-up identical to the old arithmetic.
+     *
+     * The opening balances themselves live in SharedPreferences, which a Room migration cannot
+     * read, so they are copied across once at startup by `backfillAccountOpeningBalances()`.
+     */
+    private val MIGRATION_16_17 = object : Migration(16, 17) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE payment_methods ADD COLUMN openingBalance REAL NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE payment_methods ADD COLUMN fundedById INTEGER")
+            db.execSQL(
+                """
+                UPDATE payment_methods
+                SET fundedById = (SELECT id FROM payment_methods WHERE LOWER(name) = 'bank' LIMIT 1)
+                WHERE LOWER(name) = 'upi'
+                  AND EXISTS (SELECT 1 FROM payment_methods WHERE LOWER(name) = 'bank')
+                """.trimIndent()
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -116,7 +141,7 @@ object DatabaseModule {
             AppDatabase::class.java,
             "essential_expense_db"
         )
-        .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+        .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
         .fallbackToDestructiveMigration()
         .build()
     }

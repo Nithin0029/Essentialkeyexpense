@@ -69,8 +69,11 @@ private const val OPENING_CASH_KEY = "Opening Cash Balance"
  * - 1: the original five tabs.
  * - 2: Payment_Methods and Autopay tabs; Description on Transactions; Parent/Debit/Credit
  *      columns on Categories; Alert Threshold on Budgets.
+ * - 3: Opening Balance and Funded By on Payment_Methods, which turned payment methods into
+ *      accounts. Opening balances had lived only in app preferences until then, so they were
+ *      the one thing a reinstall could not recover.
  */
-internal const val SHEET_SCHEMA_VERSION = 2
+internal const val SHEET_SCHEMA_VERSION = 3
 
 /**
  * Merges new key/value pairs over the rows a two-column tab already holds.
@@ -504,7 +507,9 @@ class SpreadsheetManager @Inject constructor(
             "Budgets" to listOf("Budget ID", "Category", "Amount", "Month", "Year", "Alert Threshold"),
             "Settings" to listOf("Setting", "Value"),
             "App_Metadata" to listOf("Key", "Value"),
-            "Payment_Methods" to listOf("Name", "Is System"),
+            // Appended after the fact, so sheets written before accounts existed keep A..B
+            // aligned and simply get the new cells filled on the next sync.
+            "Payment_Methods" to listOf("Name", "Is System", "Opening Balance", "Funded By"),
             "Autopay" to listOf(
                 "Rule ID", "Description", "Category", "Type", "Amount",
                 "Payment Method", "Friend Name", "Day Of Month", "Active", "Last Run Month"
@@ -599,7 +604,7 @@ class SpreadsheetManager @Inject constructor(
                     "Friends" -> listOf(90, 220, 130, 130, 170, 180, 180)
                     "Budgets" -> listOf(120, 160, 120, 80, 80)
                     "Settings", "App_Metadata" -> listOf(220, 220)
-                    "Payment_Methods" -> listOf(220, 110)
+                    "Payment_Methods" -> listOf(220, 110, 150, 150)
                     "Autopay" -> listOf(100, 220, 140, 90, 110, 140, 160, 120, 90, 140)
                     else -> emptyList()
                 }
@@ -1106,8 +1111,14 @@ class SpreadsheetManager @Inject constructor(
     suspend fun syncOpeningBalancesToSheet(): Boolean = withContext(Dispatchers.IO) {
         val service = getSheetsService() ?: return@withContext false
         val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
-        upsertSetting(service, spreadsheetId, OPENING_BANK_KEY, appPrefs.openingBankBalance.value.toString())
-        upsertSetting(service, spreadsheetId, OPENING_CASH_KEY, appPrefs.openingCashBalance.value.toString())
+        // Read from the accounts, which own these numbers now. The two Settings rows are kept
+        // up to date for sheets and app versions that predate the Payment_Methods columns.
+        val methods = repositoryProvider.get().getPaymentMethodsOnce()
+        val opening = { name: String ->
+            methods.find { it.name.equals(name, ignoreCase = true) }?.openingBalance ?: 0.0
+        }
+        upsertSetting(service, spreadsheetId, OPENING_BANK_KEY, opening("Bank").toString())
+        upsertSetting(service, spreadsheetId, OPENING_CASH_KEY, opening("Cash").toString())
         Log.i(tag, "[SETTINGS_SYNC] Opening balances pushed")
         true
     }
@@ -1129,9 +1140,17 @@ class SpreadsheetManager @Inject constructor(
         val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
         try {
             val methods = repositoryProvider.get().getAllPaymentMethods().first()
+            val byId = methods.associateBy { it.id }
             methods.forEach { method ->
-                val row = listOf(method.name, if (method.isSystem) "Yes" else "No")
-                upsertRow(service, spreadsheetId, "Payment_Methods", method.name, "A", row, "B")
+                // Funding is written as the account's *name*, not its id: ids are local to one
+                // device, and a restore matches payment methods by name for the same reason.
+                val row = listOf(
+                    sheetSafeText(method.name),
+                    if (method.isSystem) "Yes" else "No",
+                    method.openingBalance.toString(),
+                    sheetSafeText(method.fundedById?.let { byId[it]?.name } ?: "")
+                )
+                upsertRow(service, spreadsheetId, "Payment_Methods", method.name, "A", row, "D")
             }
             Log.i(tag, "[PAYMENT_SYNC] Pushed ${methods.size} payment methods")
             true
@@ -1327,21 +1346,20 @@ class SpreadsheetManager @Inject constructor(
      * has already corrected on this install. Values are written with a currency prefix for
      * readability, which [toSheetNumber] strips.
      */
-    private fun restoreOpeningBalances(service: Sheets, spreadsheetId: String) {
+    private suspend fun restoreOpeningBalances(service: Sheets, spreadsheetId: String) {
         val rows = readRows(service, spreadsheetId, "Settings!A2:B") ?: return
         val byKey = rows.associate { it.cell(0) to it.cell(1) }
 
-        if (appPrefs.openingBankBalance.value == 0.0) {
-            byKey[OPENING_BANK_KEY]?.toSheetNumber()?.let {
-                appPrefs.setOpeningBankBalance(it)
-                Log.i(tag, "[RESTORE] Opening bank balance recovered from sheet")
-            }
-        }
-        if (appPrefs.openingCashBalance.value == 0.0) {
-            byKey[OPENING_CASH_KEY]?.toSheetNumber()?.let {
-                appPrefs.setOpeningCashBalance(it)
-                Log.i(tag, "[RESTORE] Opening cash balance recovered from sheet")
-            }
+        // Only the Bank and Cash accounts are covered here. Every other account carries its
+        // own opening balance in the Payment_Methods tab, which restorePaymentMethods reads;
+        // these two rows exist because they predate accounts and older sheets still have them.
+        val repository = repositoryProvider.get()
+        listOf("Bank" to OPENING_BANK_KEY, "Cash" to OPENING_CASH_KEY).forEach { (account, key) ->
+            val stored = byKey[key]?.toSheetNumber() ?: return@forEach
+            val current = repository.getPaymentMethodByName(account)
+            if (current == null || current.openingBalance != 0.0) return@forEach
+            repository.setAccountOpeningBalanceByName(account, stored)
+            Log.i(tag, "[RESTORE] Opening balance for $account recovered from sheet")
         }
     }
 
@@ -1457,22 +1475,46 @@ class SpreadsheetManager @Inject constructor(
         return toInsert.size
     }
 
+    /**
+     * Restores payment methods, including each account's opening balance and what it draws on.
+     *
+     * Two passes, like categories: a method cannot point at the account that funds it until that
+     * account exists locally. Rows written before accounts existed have neither column and come
+     * back as plain accounts holding nothing, which is exactly what they were.
+     */
     private suspend fun restorePaymentMethods(rows: List<List<Any>>): Int {
         val repository = repositoryProvider.get()
         var restored = 0
-        rows.forEach { row ->
-            val name = row.cell(0)
-            if (name.isEmpty()) return@forEach
-            if (repository.getPaymentMethodByName(name) != null) return@forEach
-            repository.insertRestoredPaymentMethod(
-                com.nothing.expensetracker.data.local.PaymentMethod(
-                    name = name,
-                    isSystem = row.cell(1).toSheetBoolean()
-                )
-            )
-            restored++
+
+        rows.filter { it.cell(3).isEmpty() }.forEach { row ->
+            if (insertPaymentMethodRow(row, fundedById = null)) restored++
+        }
+
+        rows.filter { it.cell(3).isNotEmpty() }.forEach { row ->
+            val funder = repository.getPaymentMethodByName(row.cell(3))
+            if (funder == null) {
+                Log.w(tag, "[RESTORE] Payment method's funding account not found, restoring as its own account")
+            }
+            if (insertPaymentMethodRow(row, fundedById = funder?.id)) restored++
         }
         return restored
+    }
+
+    /** Inserts one Payment_Methods row if that name is free. Returns whether it inserted. */
+    private suspend fun insertPaymentMethodRow(row: List<Any>, fundedById: Long?): Boolean {
+        val repository = repositoryProvider.get()
+        val name = row.cell(0)
+        if (name.isEmpty()) return false
+        if (repository.getPaymentMethodByName(name) != null) return false
+        repository.insertRestoredPaymentMethod(
+            com.nothing.expensetracker.data.local.PaymentMethod(
+                name = name,
+                isSystem = row.cell(1).toSheetBoolean(),
+                openingBalance = row.cell(2).toSheetNumber() ?: 0.0,
+                fundedById = fundedById
+            )
+        )
+        return true
     }
 
     /**

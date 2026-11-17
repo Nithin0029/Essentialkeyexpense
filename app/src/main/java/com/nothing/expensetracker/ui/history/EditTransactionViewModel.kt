@@ -68,6 +68,9 @@ class EditTransactionViewModel @Inject constructor(
 
     fun getAllPaymentMethods() = repository.getPaymentMethodNames()
 
+    /** Which account each payment method draws on, so the picker can say so. */
+    fun getPaymentMethodFunding() = repository.getPaymentMethodFunding()
+
     fun updateExpense(updatedExpense: Expense) {
         if (_uiState.value.isSaving) return
         _uiState.value = _uiState.value.copy(isSaving = true)

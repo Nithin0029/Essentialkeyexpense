@@ -27,4 +27,11 @@ interface PaymentMethodDao {
 
     @Query("SELECT COUNT(*) FROM payment_methods")
     suspend fun countPaymentMethods(): Int
+
+    /** A snapshot rather than a Flow, for the one-shot opening-balance backfill at startup. */
+    @Query("SELECT * FROM payment_methods ORDER BY name ASC")
+    suspend fun getAllPaymentMethodsOnce(): List<PaymentMethod>
+
+    @Query("UPDATE payment_methods SET openingBalance = :balance WHERE id = :id")
+    suspend fun setOpeningBalance(id: Long, balance: Double)
 }

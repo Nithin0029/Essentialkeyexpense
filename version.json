@@ -1,13 +1,14 @@
 {
-  "versionCode": 371,
-  "versionName": "3.7.1",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.7.1/EssentialExpenseTracker-v3.7.1.apk",
+  "versionCode": 380,
+  "versionName": "3.8.0",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.0/EssentialExpenseTracker-v3.8.0.apk",
   "releaseNotes": [
-    "Fixed: a transaction with a long note broke the Dashboard list - the amount was printed one digit per line down the side of the screen",
-    "Fixed: choosing a subcategory renamed the category above it, so picking Fitness under Me left both boxes reading Fitness",
-    "Fixed: a category you deleted could come back on the next launch. The restore was re-creating it from the spreadsheet before your deletion had been sent, and it came back permanently",
-    "Your spreadsheet's App_Metadata tab now reports the truth. It had claimed app version 2.0.0 and schema version 1 since the day it was created, and Last Sync had read Never on every sheet ever made",
-    "Installs over the top of 3.6.0 or 3.7.0. From 3.5.0 or earlier you must still uninstall first, after syncing"
+    "More than one bank account. Every payment method can now hold its own balance, so a second bank, a wallet or anything else you keep money in shows up separately on the Dashboard and adds into Total Assets",
+    "Methods that spend from an account - UPI from your bank, a card from a current account - can say so, and their spending comes off that account instead of being counted twice or not at all",
+    "Before this, only the names Bank, UPI and Cash counted towards your balances. Anything else was treated as spending but came off no balance at all, so your totals quietly drifted. Money on a payment method that no longer exists is now shown rather than ignored",
+    "Set each account's balance from Settings - Payment Methods. You enter what it holds today, same as before",
+    "Your opening balances move onto their accounts automatically on first launch, and your spreadsheet gains the two columns that carry them, so a reinstall can bring them back",
+    "Installs over the top of 3.6.0 or later. From 3.5.0 or earlier you must still uninstall first, after syncing"
   ],
   "forceUpdate": false
 }

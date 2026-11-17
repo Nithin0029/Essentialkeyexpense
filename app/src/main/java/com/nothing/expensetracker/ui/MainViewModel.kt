@@ -15,17 +15,22 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
+import com.nothing.expensetracker.data.repository.AccountBalance
+import com.nothing.expensetracker.data.repository.rollUpAccountBalances
 import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.*
 import javax.inject.Inject
 
 data class DashboardData(
-    val bankBalance: Double = 0.0,
-    val cashBalance: Double = 0.0,
+    /**
+     * Every account that holds money, each already including whatever draws on it. Replaces the
+     * old fixed pair of bank and cash figures, which could not describe a second bank account.
+     */
+    val accounts: List<AccountBalance> = emptyList(),
     val totalAssets: Double = 0.0,
-    val openingBankBalance: Double = 0.0,
-    val openingCashBalance: Double = 0.0,
+    /** Movement on a payment method that no longer exists; non-zero means the totals are short. */
+    val unassignedNet: Double = 0.0,
     val income: Double = 0.0,
     val expense: Double = 0.0,
     val todaySpending: Double = 0.0,
@@ -72,13 +77,12 @@ class MainViewModel @Inject constructor(
      */
     fun completeBalanceSetup(bankNow: Double, cashNow: Double) {
         viewModelScope.launch {
-            val bankCredits = repository.getTotalUpiBankCredits().first() ?: 0.0
-            val bankDebits = repository.getTotalUpiBankDebits().first() ?: 0.0
-            val cashCredits = repository.getTotalCashCredits().first() ?: 0.0
-            val cashDebits = repository.getTotalCashDebits().first() ?: 0.0
-            appPrefs.setOpeningBankBalance(bankNow - (bankCredits - bankDebits))
-            appPrefs.setOpeningCashBalance(cashNow - (cashCredits - cashDebits))
+            repository.setAccountBalanceTodayByName("Bank", bankNow)
+            repository.setAccountBalanceTodayByName("Cash", cashNow)
             appPrefs.markBalancesSetUp()
+            // The accounts own these numbers now, so the one-shot copy out of preferences must
+            // not run later and overwrite what the user just typed.
+            appPrefs.markOpeningBalancesMigrated()
         }
     }
 
@@ -92,6 +96,17 @@ class MainViewModel @Inject constructor(
                 repository.seedDefaultCategories()
                 repository.cleanupLegacyCategories()
                 repository.seedDefaultPaymentMethods()
+
+                // Opening balances predate accounts and live in preferences, where no Room
+                // migration can reach them. Carry them over once, after seeding has guaranteed
+                // the accounts exist.
+                if (!appPrefs.hasMigratedOpeningBalances()) {
+                    repository.backfillAccountOpeningBalances(
+                        bank = appPrefs.openingBankBalance.value,
+                        cash = appPrefs.openingCashBalance.value
+                    )
+                    appPrefs.markOpeningBalancesMigrated()
+                }
 
                 Log.d("MainViewModel", "Startup: Scheduling background sync...")
                 syncScheduler.scheduleSync()
@@ -127,21 +142,13 @@ class MainViewModel @Inject constructor(
 
     val uiState: StateFlow<DashboardUiState> = combine(
         repository.getAllExpenses().distinctUntilChanged(),
-        repository.getTotalUpiBankCredits().distinctUntilChanged(),
-        repository.getTotalUpiBankDebits().distinctUntilChanged(),
-        repository.getTotalCashCredits().distinctUntilChanged(),
-        repository.getTotalCashDebits().distinctUntilChanged(),
-        appPrefs.openingBankBalance,
-        appPrefs.openingCashBalance
-    ) { flows ->
+        // Balances come from the accounts now rather than three hardcoded method names, so a
+        // second bank account is just another row instead of money with nowhere to go.
+        repository.getAllPaymentMethods().distinctUntilChanged(),
+        repository.getTotalsByPaymentMethod().distinctUntilChanged()
+    ) { allExpenses, paymentMethods, methodTotals ->
         try {
-            val allExpenses = (flows[0] as? List<*>)?.filterIsInstance<Expense>() ?: emptyList()
-            val bankCredits = flows[1] as? Double ?: 0.0
-            val bankDebits = flows[2] as? Double ?: 0.0
-            val cashCredits = flows[3] as? Double ?: 0.0
-            val cashDebits = flows[4] as? Double ?: 0.0
-            val opBank = flows[5] as? Double ?: 0.0
-            val opCash = flows[6] as? Double ?: 0.0
+            val rollUp = rollUpAccountBalances(paymentMethods, methodTotals)
 
             if (allExpenses.isEmpty()) {
                 return@combine DashboardUiState.Empty
@@ -202,9 +209,6 @@ class MainViewModel @Inject constructor(
             }
 
             // 1. Balances
-            val bankBalance = opBank + bankCredits - bankDebits
-            val cashBalance = opCash + cashCredits - cashDebits
-            val totalAssets = bankBalance + cashBalance
 
             // 7. Category Breakdown
             val topCategories = categoryMap
@@ -228,11 +232,9 @@ class MainViewModel @Inject constructor(
 
             DashboardUiState.Success(
                 DashboardData(
-                    bankBalance = bankBalance,
-                    cashBalance = cashBalance,
-                    totalAssets = totalAssets,
-                    openingBankBalance = opBank,
-                    openingCashBalance = opCash,
+                    accounts = rollUp.accounts,
+                    totalAssets = rollUp.totalAssets,
+                    unassignedNet = rollUp.unassignedNet,
                     income = income,
                     expense = expenseTotal,
                     todaySpending = todaySpending,

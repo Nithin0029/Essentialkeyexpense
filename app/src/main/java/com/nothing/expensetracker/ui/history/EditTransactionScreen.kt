@@ -77,6 +77,8 @@ fun EditTransactionScreen(
         val friends by viewModel.getAllFriends().collectAsState(initial = emptyList())
         val categories by viewModel.getCategories().collectAsState(initial = emptyList())
         val paymentMethods by viewModel.getAllPaymentMethods().collectAsState(initial = emptyList())
+        val paymentMethodFunding by viewModel.getPaymentMethodFunding()
+            .collectAsState(initial = emptyMap())
         expenseState?.let { expense ->
             EditTransactionContent(
                 modifier = Modifier.padding(paddingValues),
@@ -84,6 +86,7 @@ fun EditTransactionScreen(
                 friends = friends,
                 categories = categories,
                 paymentMethods = paymentMethods,
+                paymentMethodFunding = paymentMethodFunding,
                 isSaving = uiState.isSaving,
                 onSave = { updatedExpense ->
                     viewModel.updateExpense(updatedExpense)
@@ -107,6 +110,8 @@ fun EditTransactionContent(
     friends: List<String>,
     categories: List<Category>,
     paymentMethods: List<String>,
+    /** Method name to the account it spends from. Absent for methods that hold their own money. */
+    paymentMethodFunding: Map<String, String> = emptyMap(),
     isSaving: Boolean,
     onSave: (Expense) -> Unit,
     onCancel: () -> Unit,
@@ -372,6 +377,11 @@ fun EditTransactionContent(
                 readOnly = true,
                 label = { Text("Payment Method") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = methodExpanded) },
+                // "UPI" alone does not say which bank it empties. With two accounts that is the
+                // difference between a balance you trust and one you have to think about.
+                supportingText = paymentMethodFunding[paymentMethod]?.let { funder ->
+                    { Text("Comes out of $funder", style = MaterialTheme.typography.labelSmall) }
+                },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -386,8 +396,20 @@ fun EditTransactionContent(
                 onDismissRequest = { methodExpanded = false }
             ) {
                 methods.forEach { m ->
+                    val funder = paymentMethodFunding[m]
                     DropdownMenuItem(
-                        text = { Text(m) },
+                        text = {
+                            Column {
+                                Text(m)
+                                if (funder != null) {
+                                    Text(
+                                        text = "Draws on $funder",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
                         onClick = {
                             paymentMethod = m
                             methodExpanded = false

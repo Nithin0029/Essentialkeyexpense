@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
  * The Room schema version, named so the spreadsheet's App_Metadata tab can report the same
  * number without anyone having to keep a second copy of it in step by hand.
  */
-const val DATABASE_VERSION = 16
+const val DATABASE_VERSION = 17
 
 @Database(
     entities = [Expense::class, Friend::class, Category::class, Budget::class, PaymentMethod::class, AutopayRule::class],

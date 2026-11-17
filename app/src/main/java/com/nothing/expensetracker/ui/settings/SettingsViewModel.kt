@@ -8,7 +8,9 @@ import com.nothing.expensetracker.auth.AuthState
 import com.nothing.expensetracker.auth.GoogleAuthManager
 import com.nothing.expensetracker.data.local.AppPrefs
 import com.nothing.expensetracker.data.local.ThemeMode
+import com.nothing.expensetracker.data.repository.AccountBalance
 import com.nothing.expensetracker.data.repository.ExpenseRepository
+import com.nothing.expensetracker.data.repository.rollUpAccountBalances
 import com.nothing.expensetracker.sync.RestoreSummary
 import com.nothing.expensetracker.sync.SpreadsheetManager
 import com.nothing.expensetracker.sync.SyncManager
@@ -44,25 +46,35 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     /**
-     * What each account is worth today: the opening figure plus everything that has happened
+     * Every account and what it holds today.
+     *
+     * Settings keeps shortcuts for Bank and Cash because those are the two most people touch;
+     * any further account — a second bank, a wallet — is managed on the Payment Methods screen,
+     * which is where accounts now live.
+     */
+    private val accounts: StateFlow<List<AccountBalance>> = combine(
+        repository.getAllPaymentMethods(),
+        repository.getTotalsByPaymentMethod()
+    ) { methods, totals ->
+        rollUpAccountBalances(methods, totals).accounts
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun account(name: String) = accounts.map { list ->
+        list.find { it.name.equals(name, ignoreCase = true) }
+    }
+
+    /**
+     * What the account is worth today: the opening figure plus everything that has happened
      * since. This is the number the user actually recognises, so it is what the UI shows and
      * what they are asked to correct — the stored opening balance is derived from it.
      */
-    val currentBankBalance: StateFlow<Double> = combine(
-        appPrefs.openingBankBalance,
-        repository.getTotalUpiBankCredits(),
-        repository.getTotalUpiBankDebits()
-    ) { opening, credits, debits ->
-        opening + (credits ?: 0.0) - (debits ?: 0.0)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    val currentBankBalance: StateFlow<Double> = account("Bank")
+        .map { it?.balance ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val currentCashBalance: StateFlow<Double> = combine(
-        appPrefs.openingCashBalance,
-        repository.getTotalCashCredits(),
-        repository.getTotalCashDebits()
-    ) { opening, credits, debits ->
-        opening + (credits ?: 0.0) - (debits ?: 0.0)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    val currentCashBalance: StateFlow<Double> = account("Cash")
+        .map { it?.balance ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     /**
      * Sets the bank balance to what the user says it is right now.
@@ -73,31 +85,29 @@ class SettingsViewModel @Inject constructor(
      * So the opening balance is solved for instead: whatever value makes today's total come out
      * right, given every transaction on record.
      */
-    fun setCurrentBankBalance(current: Double) {
+    fun setCurrentBankBalance(current: Double) = setAccountBalance("Bank", current)
+
+    fun setCurrentCashBalance(current: Double) = setAccountBalance("Cash", current)
+
+    private fun setAccountBalance(name: String, current: Double) {
         viewModelScope.launch {
-            val credits = repository.getTotalUpiBankCredits().first() ?: 0.0
-            val debits = repository.getTotalUpiBankDebits().first() ?: 0.0
-            appPrefs.setOpeningBankBalance(current - (credits - debits))
+            repository.setAccountBalanceTodayByName(name, current)
             // Answering here counts as completing setup, so the first-run prompt won't reappear.
             appPrefs.markBalancesSetUp()
-            // Push straight away: this value lives in app preferences, so the spreadsheet is the
-            // only place it survives a reinstall.
+            appPrefs.markOpeningBalancesMigrated()
+            // Push straight away: an opening balance is not a transaction, so nothing else in
+            // the sync queue would carry it, and the spreadsheet is where it survives a reinstall.
             spreadsheetManager.syncOpeningBalancesToSheet()
         }
     }
 
-    fun setCurrentCashBalance(current: Double) {
-        viewModelScope.launch {
-            val credits = repository.getTotalCashCredits().first() ?: 0.0
-            val debits = repository.getTotalCashDebits().first() ?: 0.0
-            appPrefs.setOpeningCashBalance(current - (credits - debits))
-            appPrefs.markBalancesSetUp()
-            spreadsheetManager.syncOpeningBalancesToSheet()
-        }
-    }
+    val openingBankBalance: StateFlow<Double> = account("Bank")
+        .map { it?.openingBalance ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val openingBankBalance: StateFlow<Double> = appPrefs.openingBankBalance
-    val openingCashBalance: StateFlow<Double> = appPrefs.openingCashBalance
+    val openingCashBalance: StateFlow<Double> = account("Cash")
+        .map { it?.openingBalance ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
     val themeMode: StateFlow<ThemeMode> = appPrefs.themeMode
     val authState: StateFlow<AuthState> = googleAuthManager.authState
 
@@ -143,11 +153,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateOpeningBankBalance(balance: Double) {
-        appPrefs.setOpeningBankBalance(balance)
+        viewModelScope.launch { repository.setAccountOpeningBalanceByName("Bank", balance) }
     }
 
     fun updateOpeningCashBalance(balance: Double) {
-        appPrefs.setOpeningCashBalance(balance)
+        viewModelScope.launch { repository.setAccountOpeningBalanceByName("Cash", balance) }
     }
 
     fun getSignInIntent() = googleAuthManager.getSignInIntent()

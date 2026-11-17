@@ -12,6 +12,13 @@ data class CategoryExpense(
     val totalAmount: Double
 )
 
+/** Money in and out for one payment method, the raw material for account balances. */
+data class MethodTotals(
+    val method: String,
+    val credits: Double,
+    val debits: Double
+)
+
 data class FriendBalance(
     val friendName: String,
     val totalDebit: Double,
@@ -160,6 +167,33 @@ interface ExpenseDao {
         ORDER BY totalAmount DESC
     """)
     fun getExpensesByCategoryFiltered(month: String, year: String): Flow<List<CategoryExpense>>
+
+    /**
+     * Credits and debits per payment method, for the account roll-up.
+     *
+     * Replaces summing three hardcoded method names: those queries could only describe one bank
+     * account and one cash pile, and anything else fell through without a trace.
+     */
+    @Query("""
+        SELECT paymentMethod AS method,
+               SUM(CASE WHEN type = 'Credit' THEN amount ELSE 0 END) AS credits,
+               SUM(CASE WHEN type = 'Debit' THEN amount ELSE 0 END) AS debits
+        FROM expenses
+        WHERE syncStatus != 'Deleted'
+        GROUP BY paymentMethod
+    """)
+    fun getTotalsByPaymentMethod(): Flow<List<MethodTotals>>
+
+    /** The same totals as a snapshot, for code that needs one answer rather than a stream. */
+    @Query("""
+        SELECT paymentMethod AS method,
+               SUM(CASE WHEN type = 'Credit' THEN amount ELSE 0 END) AS credits,
+               SUM(CASE WHEN type = 'Debit' THEN amount ELSE 0 END) AS debits
+        FROM expenses
+        WHERE syncStatus != 'Deleted'
+        GROUP BY paymentMethod
+    """)
+    suspend fun getTotalsByPaymentMethodOnce(): List<MethodTotals>
 
     @Query("SELECT SUM(amount) FROM expenses WHERE syncStatus != 'Deleted' AND type = 'Credit' AND (paymentMethod = 'UPI' OR paymentMethod = 'Bank')")
     fun getTotalUpiBankCredits(): Flow<Double?>
