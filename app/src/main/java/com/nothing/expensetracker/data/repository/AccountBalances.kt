@@ -108,3 +108,48 @@ fun rollUpAccountBalances(
         unassignedDebits = unassignedDebits
     )
 }
+
+/**
+ * Works out which account a newly named payment method spends from, by reading its name.
+ *
+ * "UPI-HDFC" draws on HDFC, "Card SBI" draws on SBI. The convention people reach for anyway is
+ * taken as the answer, so adding a rail for a second bank is one field rather than two.
+ *
+ * Matched on whole words, never on raw substrings: "Cashback" is not a Cash card, and a user who
+ * names an account that way should not find their spending quietly landing in the wrong balance.
+ * Where several accounts match, the most specific wins — with both "HDFC" and "HDFC Bank" on file,
+ * "UPI HDFC Bank" belongs to the latter.
+ *
+ * Returns null when the name *is* an account's name, which means a new account rather than a rail
+ * for an existing one, and null when nothing matches. This is a suggestion: the caller shows it
+ * and lets the user override, because a guess from a name should never be the last word on where
+ * someone's money lives.
+ */
+fun inferFundingAccount(name: String, accounts: List<PaymentMethod>): PaymentMethod? {
+    val typed = nameTokens(name)
+    if (typed.isEmpty()) return null
+
+    var best: PaymentMethod? = null
+    var bestTokens = 0
+    accounts.forEach { account ->
+        if (!account.isAccount) return@forEach
+        val target = nameTokens(account.name)
+        // An equal or longer name cannot be a qualifier inside this one, which also rules out
+        // the case where the two names are the same.
+        if (target.isEmpty() || target.size >= typed.size) return@forEach
+        if (!containsRun(typed, target)) return@forEach
+        if (target.size > bestTokens) {
+            best = account
+            bestTokens = target.size
+        }
+    }
+    return best
+}
+
+/** Lower-cased words, with punctuation and separators treated as spaces: "UPI-HDFC" to [upi, hdfc]. */
+private fun nameTokens(value: String): List<String> =
+    value.lowercase().split(Regex("[^a-z0-9]+")).filter { it.isNotEmpty() }
+
+/** Whether [whole] contains [run] as consecutive words. */
+private fun containsRun(whole: List<String>, run: List<String>): Boolean =
+    whole.windowed(run.size, 1, partialWindows = false).any { it == run }

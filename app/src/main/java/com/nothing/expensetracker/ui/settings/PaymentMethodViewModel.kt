@@ -73,6 +73,8 @@ class PaymentMethodViewModel @Inject constructor(
     fun addPaymentMethod(
         name: String,
         fundedById: Long? = null,
+        /** What the new account holds today. Ignored when it draws on another account. */
+        balanceToday: Double = 0.0,
         onResult: (Boolean, String?) -> Unit
     ) {
         val trimmedName = name.trim()
@@ -85,19 +87,28 @@ class PaymentMethodViewModel @Inject constructor(
             if (existing != null) {
                 onResult(false, "Payment method already exists.")
             } else {
+                // A new account has no history, so what it holds today *is* its opening balance.
                 repository.insertPaymentMethod(
-                    PaymentMethod(name = trimmedName, fundedById = fundedById)
+                    PaymentMethod(
+                        name = trimmedName,
+                        fundedById = fundedById,
+                        openingBalance = if (fundedById == null) balanceToday else 0.0
+                    )
                 )
                 onResult(true, null)
             }
         }
     }
 
+    /**
+     * Renames a payment method, including the ones that ship with the app.
+     *
+     * Renaming used to be blocked for those because balances were tracked against the literal
+     * names "Bank", "UPI" and "Cash" in SQL. They are tracked against account rows now, and the
+     * rename rewrites every transaction's method in the same step, so "Bank" can become
+     * "HDFC Bank" without a balance moving.
+     */
     fun updatePaymentMethod(method: PaymentMethod, newName: String, onResult: (Boolean, String?) -> Unit) {
-        if (method.isSystem) {
-            onResult(false, "Default payment methods can't be renamed since balances are tracked against them.")
-            return
-        }
         val trimmedName = newName.trim()
         if (trimmedName.isBlank()) {
             onResult(false, "Name cannot be empty")
