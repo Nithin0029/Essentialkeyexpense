@@ -1114,11 +1114,13 @@ class SpreadsheetManager @Inject constructor(
         // Read from the accounts, which own these numbers now. The two Settings rows are kept
         // up to date for sheets and app versions that predate the Payment_Methods columns.
         val methods = repositoryProvider.get().getPaymentMethodsOnce()
+        // Skipped rather than zeroed when the account has been renamed: writing 0 over a row
+        // that was right would corrupt the one copy an older app version can still read.
         val opening = { name: String ->
-            methods.find { it.name.equals(name, ignoreCase = true) }?.openingBalance ?: 0.0
+            methods.find { it.name.equals(name, ignoreCase = true) }?.openingBalance
         }
-        upsertSetting(service, spreadsheetId, OPENING_BANK_KEY, opening("Bank").toString())
-        upsertSetting(service, spreadsheetId, OPENING_CASH_KEY, opening("Cash").toString())
+        opening("Bank")?.let { upsertSetting(service, spreadsheetId, OPENING_BANK_KEY, it.toString()) }
+        opening("Cash")?.let { upsertSetting(service, spreadsheetId, OPENING_CASH_KEY, it.toString()) }
         Log.i(tag, "[SETTINGS_SYNC] Opening balances pushed")
         true
     }

@@ -43,12 +43,12 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.nothing.expensetracker.auth.AuthState
 import com.nothing.expensetracker.auth.BiometricAuthHelper
 import com.nothing.expensetracker.data.local.ThemeMode
+import com.nothing.expensetracker.data.repository.AccountBalance
 import com.nothing.expensetracker.util.formatCurrency
 import java.util.*
 
 enum class MpinVerifyReason {
-    EDIT_OPENING_BANK_BALANCE,
-    EDIT_OPENING_CASH_BALANCE,
+    EDIT_ACCOUNT_BALANCE,
     DISABLE_MPIN
 }
 
@@ -64,20 +64,20 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     mpinViewModel: com.nothing.expensetracker.ui.auth.MpinViewModel = hiltViewModel()
 ) {
-    val openingBankBalance by viewModel.openingBankBalance.collectAsState()
-    val openingCashBalance by viewModel.openingCashBalance.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val authState by viewModel.authState.collectAsState()
     val spreadsheetState by viewModel.spreadsheetState.collectAsState()
     val restoreState by viewModel.restoreState.collectAsState()
     val currentBankBalance by viewModel.currentBankBalance.collectAsState()
     val currentCashBalance by viewModel.currentCashBalance.collectAsState()
-    
-    var showOpeningBankBalanceDialog by remember { mutableStateOf(false) }
-    var showOpeningCashBalanceDialog by remember { mutableStateOf(false) }
+
+    // Which account the balance dialog is about. Null means it is closed.
+    var accountToEdit by remember { mutableStateOf<AccountBalance?>(null) }
+    var pendingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     var showMpinVerifyDialog by remember { mutableStateOf(false) }
     var mpinVerifyReason by remember { mutableStateOf<MpinVerifyReason?>(null) }
-    
+
     val mpinEnabled = mpinViewModel.isMpinSet()
     val context = LocalContext.current
     val activity = context as? FragmentActivity
@@ -119,24 +119,14 @@ fun SettingsScreen(
             )
 
             FinancialSettingsCard(
-                openingBankBalance = openingBankBalance,
-                openingCashBalance = openingCashBalance,
-                currentBankBalance = currentBankBalance,
-                currentCashBalance = currentCashBalance,
-                onEditBank = { 
+                accounts = accounts,
+                onEditAccount = { account ->
                     if (mpinEnabled) {
-                        mpinVerifyReason = MpinVerifyReason.EDIT_OPENING_BANK_BALANCE
+                        pendingAccount = account
+                        mpinVerifyReason = MpinVerifyReason.EDIT_ACCOUNT_BALANCE
                         showMpinVerifyDialog = true
                     } else {
-                        showOpeningBankBalanceDialog = true
-                    }
-                },
-                onEditCash = {
-                    if (mpinEnabled) {
-                        mpinVerifyReason = MpinVerifyReason.EDIT_OPENING_CASH_BALANCE
-                        showMpinVerifyDialog = true
-                    } else {
-                        showOpeningCashBalanceDialog = true
+                        accountToEdit = account
                     }
                 }
             )
@@ -209,7 +199,7 @@ fun SettingsScreen(
             )
 
             AboutCard()
-            
+
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -283,7 +273,8 @@ fun SettingsScreen(
                     // wrong by exactly the old opening balance, with nothing on screen saying so.
                     Button(onClick = {
                         viewModel.acknowledgeRestore()
-                        showOpeningBankBalanceDialog = true
+                        // Opens the first account; the rest are a row each in Settings below.
+                        accountToEdit = accounts.firstOrNull()
                     }) { Text("Set Balance") }
                 } else {
                     Button(onClick = { viewModel.acknowledgeRestore() }) { Text("Done") }
@@ -339,30 +330,17 @@ fun SettingsScreen(
         )
     }
 
-    if (showOpeningBankBalanceDialog) {
+    if (accountToEdit != null) {
+        val target = accountToEdit!!
         OpeningBalanceDialog(
-            title = "Bank Balance Today",
-            explanation = "Enter what your bank account holds right now. Past transactions stay " +
+            title = "${target.name} Today",
+            explanation = "Enter what ${target.name} holds right now. Past transactions stay " +
                 "as they are - the opening balance is adjusted to match.",
-            initialBalance = currentBankBalance,
-            onDismiss = { showOpeningBankBalanceDialog = false },
+            initialBalance = target.balance,
+            onDismiss = { accountToEdit = null },
             onSave = {
-                viewModel.setCurrentBankBalance(it)
-                showOpeningBankBalanceDialog = false
-            }
-        )
-    }
-
-    if (showOpeningCashBalanceDialog) {
-        OpeningBalanceDialog(
-            title = "Cash in Hand Today",
-            explanation = "Enter how much cash you are holding right now. Past transactions stay " +
-                "as they are - the opening balance is adjusted to match.",
-            initialBalance = currentCashBalance,
-            onDismiss = { showOpeningCashBalanceDialog = false },
-            onSave = {
-                viewModel.setCurrentCashBalance(it)
-                showOpeningCashBalanceDialog = false
+                viewModel.setAccountBalanceById(target.id, it)
+                accountToEdit = null
             }
         )
     }
@@ -376,8 +354,10 @@ fun SettingsScreen(
             onSuccess = {
                 showMpinVerifyDialog = false
                 when (mpinVerifyReason) {
-                    MpinVerifyReason.EDIT_OPENING_BANK_BALANCE -> showOpeningBankBalanceDialog = true
-                    MpinVerifyReason.EDIT_OPENING_CASH_BALANCE -> showOpeningCashBalanceDialog = true
+                    MpinVerifyReason.EDIT_ACCOUNT_BALANCE -> {
+                        accountToEdit = pendingAccount
+                        pendingAccount = null
+                    }
                     MpinVerifyReason.DISABLE_MPIN -> {
                         mpinViewModel.removeMpin()
                         biometricEnabled = false
@@ -482,7 +462,7 @@ fun SecuritySettingsCard(
 
             if (mpinEnabled) {
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -561,9 +541,9 @@ fun MpinVerifyDialog(
                 if (error != null) {
                     Text(text = error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))
                 }
-                
+
                 Spacer(modifier = Modifier.height(24.dp))
-                
+
                 // Simplified keypad for dialog
                 val keys = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "C", "0", "DEL")
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -720,7 +700,7 @@ fun GoogleSyncSettingsCard(
                                 color = Color.Gray
                             )
                         }
-                        
+
                         Icon(Icons.Default.CloudDone, contentDescription = null, tint = Color(0xFF4CAF50))
                     }
 
@@ -830,11 +810,11 @@ fun GoogleSyncSettingsCard(
                             }
 
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
-                            
+
                             SyncStatRow(label = "Synced", value = syncedCount.toString(), color = Color(0xFF4CAF50))
                             SyncStatRow(label = "Pending", value = unsyncedCount.toString(), color = Color(0xFFFFC107))
                             SyncStatRow(label = "Failed", value = failedCount.toString(), color = Color(0xFFF44336))
-                            
+
                             HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
                             val syncStatus = when {
@@ -901,12 +881,8 @@ fun GoogleSyncSettingsCard(
 
 @Composable
 fun FinancialSettingsCard(
-    openingBankBalance: Double,
-    openingCashBalance: Double,
-    currentBankBalance: Double,
-    currentCashBalance: Double,
-    onEditBank: () -> Unit,
-    onEditCash: () -> Unit
+    accounts: List<AccountBalance>,
+    onEditAccount: (AccountBalance) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -927,34 +903,27 @@ fun FinancialSettingsCard(
                 color = MaterialTheme.colorScheme.primary
             )
 
+            // One row per account, not a fixed Bank and Cash pair: with a second bank on file
+            // the old pair could only ever describe two of them, and named them in SQL besides,
+            // which is what stopped accounts being renamed at all.
+            //
             // The editable figure is today's balance, not the opening one: nobody knows what
             // their account held before their first ever transaction, and after a restore the
             // opening value is gone anyway. The opening balance shown underneath is derived.
-            SettingRow(
-                label = "Bank Balance Today",
-                value = formatCurrency(currentBankBalance),
-                subtitle = "Opening: ${formatCurrency(openingBankBalance)}",
-                action = {
-                    IconButton(onClick = onEditBank) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
+            accounts.forEach { account ->
+                SettingRow(
+                    label = "${account.name} Today",
+                    value = formatCurrency(account.balance),
+                    subtitle = "Opening: ${formatCurrency(account.openingBalance)}",
+                    action = {
+                        IconButton(onClick = { onEditAccount(account) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit ${account.name}", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        }
                     }
-                }
-            )
+                )
 
-            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
-
-            SettingRow(
-                label = "Cash in Hand Today",
-                value = formatCurrency(currentCashBalance),
-                subtitle = "Opening: ${formatCurrency(openingCashBalance)}",
-                action = {
-                    IconButton(onClick = onEditCash) {
-                        Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color.Gray, modifier = Modifier.size(20.dp))
-                    }
-                }
-            )
-
-            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+            }
 
             SettingRow(
                 label = "Currency",

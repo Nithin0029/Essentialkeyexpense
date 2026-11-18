@@ -52,7 +52,7 @@ class SettingsViewModel @Inject constructor(
      * any further account — a second bank, a wallet — is managed on the Payment Methods screen,
      * which is where accounts now live.
      */
-    private val accounts: StateFlow<List<AccountBalance>> = combine(
+    val accounts: StateFlow<List<AccountBalance>> = combine(
         repository.getAllPaymentMethods(),
         repository.getTotalsByPaymentMethod()
     ) { methods, totals ->
@@ -85,6 +85,16 @@ class SettingsViewModel @Inject constructor(
      * So the opening balance is solved for instead: whatever value makes today's total come out
      * right, given every transaction on record.
      */
+    /** Sets what an account holds today, for any account rather than just Bank and Cash. */
+    fun setAccountBalanceById(id: Long, current: Double) {
+        viewModelScope.launch {
+            repository.setAccountBalanceToday(id, current)
+            appPrefs.markBalancesSetUp()
+            appPrefs.markOpeningBalancesMigrated()
+            spreadsheetManager.syncOpeningBalancesToSheet()
+        }
+    }
+
     fun setCurrentBankBalance(current: Double) = setAccountBalance("Bank", current)
 
     fun setCurrentCashBalance(current: Double) = setAccountBalance("Cash", current)

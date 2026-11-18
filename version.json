@@ -1,14 +1,13 @@
 {
-  "versionCode": 380,
-  "versionName": "3.8.0",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.0/EssentialExpenseTracker-v3.8.0.apk",
+  "versionCode": 381,
+  "versionName": "3.8.1",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.1/EssentialExpenseTracker-v3.8.1.apk",
   "releaseNotes": [
-    "More than one bank account. Every payment method can now hold its own balance, so a second bank, a wallet or anything else you keep money in shows up separately on the Dashboard and adds into Total Assets",
-    "Methods that spend from an account - UPI from your bank, a card from a current account - can say so, and their spending comes off that account instead of being counted twice or not at all",
-    "Before this, only the names Bank, UPI and Cash counted towards your balances. Anything else was treated as spending but came off no balance at all, so your totals quietly drifted. Money on a payment method that no longer exists is now shown rather than ignored",
-    "Set each account's balance from Settings - Payment Methods. You enter what it holds today, same as before",
-    "Your opening balances move onto their accounts automatically on first launch, and your spreadsheet gains the two columns that carry them, so a reinstall can bring them back",
-    "Installs over the top of 3.6.0 or later. From 3.5.0 or earlier you must still uninstall first, after syncing"
+    "Accounts can be renamed, including Bank, Cash and UPI. Call them what your bank calls them - HDFC Bank, SBI - and every past transaction moves with the name",
+    "Add an account and its balance in one step, instead of adding it and then setting the balance separately",
+    "Name a payment method after the account it spends from and it links itself: UPI-HDFC draws on HDFC, Card SBI draws on SBI. You can still set it by hand, and the guess never overrides a choice you made",
+    "Settings now lists every account with its balance, not just a fixed Bank and Cash pair",
+    "Installs over the top of 3.6.0 or later"
   ],
   "forceUpdate": false
 }

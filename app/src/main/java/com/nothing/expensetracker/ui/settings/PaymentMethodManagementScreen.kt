@@ -29,6 +29,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.nothing.expensetracker.data.local.PaymentMethod
+import com.nothing.expensetracker.data.repository.inferFundingAccount
 import com.nothing.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
 
@@ -132,8 +133,8 @@ fun PaymentMethodManagementScreen(
             title = "Add Payment Method",
             accounts = uiState.accounts,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, fundedById, onResult ->
-                viewModel.addPaymentMethod(name, fundedById, onResult)
+            onConfirm = { name, fundedById, balance, onResult ->
+                viewModel.addPaymentMethod(name, fundedById, balance, onResult)
             }
         )
     }
@@ -147,7 +148,7 @@ fun PaymentMethodManagementScreen(
             // silent dropdown.
             accounts = emptyList(),
             onDismiss = { methodToEdit = null },
-            onConfirm = { name, _, onResult ->
+            onConfirm = { name, _, _, onResult ->
                 viewModel.updatePaymentMethod(methodToEdit!!, name, onResult)
             }
         )
@@ -388,7 +389,9 @@ fun PaymentMethodItem(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .weight(1f)
-                    .clickable(enabled = !method.isSystem, onClick = onEditClick)
+                    // Any row can be renamed now, the ones that ship with the app included:
+                    // balances follow account rows rather than the literal names they had.
+                    .clickable(onClick = onEditClick)
             ) {
                 Box(
                     modifier = Modifier
@@ -526,11 +529,15 @@ fun PaymentMethodDialog(
     /** Accounts this method could draw on. Empty hides the picker, as when renaming. */
     accounts: List<PaymentMethod> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, Long?, (Boolean, String?) -> Unit) -> Unit
+    onConfirm: (String, Long?, Double, (Boolean, String?) -> Unit) -> Unit
 ) {
     var name by remember { mutableStateOf(initialName) }
     var fundedBy by remember { mutableStateOf<PaymentMethod?>(null) }
     var fundingExpanded by remember { mutableStateOf(false) }
+    var balance by remember { mutableStateOf("") }
+    // Once the user picks from the dropdown themselves, the name stops steering it. A guess that
+    // overrode a deliberate choice would be worse than no guess at all.
+    var fundingChosenByHand by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
@@ -543,6 +550,10 @@ fun PaymentMethodDialog(
                     onValueChange = {
                         name = it
                         error = null
+                        // "UPI-HDFC" means the HDFC account; so does "Card SBI" mean SBI.
+                        if (!fundingChosenByHand) {
+                            fundedBy = inferFundingAccount(it, accounts)
+                        }
                     },
                     label = { Text("Payment Method Name") },
                     modifier = Modifier.fillMaxWidth(),
@@ -581,6 +592,7 @@ fun PaymentMethodDialog(
                                 text = { Text("Holds its own balance") },
                                 onClick = {
                                     fundedBy = null
+                                    fundingChosenByHand = true
                                     fundingExpanded = false
                                 }
                             )
@@ -589,11 +601,29 @@ fun PaymentMethodDialog(
                                     text = { Text("Draws on ${account.name}") },
                                     onClick = {
                                         fundedBy = account
+                                        fundingChosenByHand = true
                                         fundingExpanded = false
                                     }
                                 )
                             }
                         }
+                    }
+
+                    // Only an account holds money, so only an account is asked what it holds.
+                    if (fundedBy == null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = balance,
+                            onValueChange = { balance = it },
+                            label = { Text("Balance today (optional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
                     }
                 }
                 if (error != null) {
@@ -609,7 +639,7 @@ fun PaymentMethodDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(name, fundedBy?.id) { success, message ->
+                    onConfirm(name, fundedBy?.id, balance.trim().toDoubleOrNull() ?: 0.0) { success, message ->
                         if (success) {
                             onDismiss()
                         } else {
