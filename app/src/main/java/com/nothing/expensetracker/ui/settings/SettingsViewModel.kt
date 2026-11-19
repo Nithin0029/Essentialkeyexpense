@@ -7,6 +7,7 @@ import com.google.android.gms.tasks.Task
 import com.nothing.expensetracker.auth.AuthState
 import com.nothing.expensetracker.auth.GoogleAuthManager
 import com.nothing.expensetracker.data.local.AppPrefs
+import com.nothing.expensetracker.data.local.PaymentMethod
 import com.nothing.expensetracker.data.local.ThemeMode
 import com.nothing.expensetracker.data.repository.AccountBalance
 import com.nothing.expensetracker.data.repository.ExpenseRepository
@@ -46,11 +47,10 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     /**
-     * Every account and what it holds today.
+     * Every account and what it holds today, under whatever name the user gave it.
      *
-     * Settings keeps shortcuts for Bank and Cash because those are the two most people touch;
-     * any further account — a second bank, a wallet — is managed on the Payment Methods screen,
-     * which is where accounts now live.
+     * One row each rather than a fixed Bank and Cash pair: once a second bank account can exist,
+     * a fixed pair can only ever describe two of them.
      */
     val accounts: StateFlow<List<AccountBalance>> = combine(
         repository.getAllPaymentMethods(),
@@ -59,33 +59,15 @@ class SettingsViewModel @Inject constructor(
         rollUpAccountBalances(methods, totals).accounts
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private fun account(name: String) = accounts.map { list ->
-        list.find { it.name.equals(name, ignoreCase = true) }
-    }
-
     /**
-     * What the account is worth today: the opening figure plus everything that has happened
-     * since. This is the number the user actually recognises, so it is what the UI shows and
-     * what they are asked to correct — the stored opening balance is derived from it.
-     */
-    val currentBankBalance: StateFlow<Double> = account("Bank")
-        .map { it?.balance ?: 0.0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
-
-    val currentCashBalance: StateFlow<Double> = account("Cash")
-        .map { it?.balance ?: 0.0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
-
-    /**
-     * Sets the bank balance to what the user says it is right now.
+     * Sets what an account holds today.
      *
      * The dashboard works forwards from an opening balance, but nobody knows what their balance
-     * was before their first ever transaction — especially after a restore, where the opening
+     * was before their first ever transaction - especially after a restore, where the opening
      * figure was lost with the uninstall while the transactions came back from the spreadsheet.
      * So the opening balance is solved for instead: whatever value makes today's total come out
      * right, given every transaction on record.
      */
-    /** Sets what an account holds today, for any account rather than just Bank and Cash. */
     fun setAccountBalanceById(id: Long, current: Double) {
         viewModelScope.launch {
             repository.setAccountBalanceToday(id, current)
@@ -95,29 +77,76 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setCurrentBankBalance(current: Double) = setAccountBalance("Bank", current)
-
-    fun setCurrentCashBalance(current: Double) = setAccountBalance("Cash", current)
-
-    private fun setAccountBalance(name: String, current: Double) {
+    /**
+     * Renames an account from the screen its balance is shown on.
+     *
+     * Goes through the same repository call as the Payment Methods screen, which rewrites every
+     * transaction recorded against the old name in the same step - a rename that left the
+     * transactions behind would strand their money outside any account, where it would surface
+     * as unassigned rather than as a balance.
+     */
+    fun renameAccount(account: AccountBalance, newName: String, onResult: (Boolean, String?) -> Unit) {
+        val trimmed = newName.trim()
+        if (trimmed.isBlank()) {
+            onResult(false, "Name cannot be empty.")
+            return
+        }
         viewModelScope.launch {
-            repository.setAccountBalanceTodayByName(name, current)
-            // Answering here counts as completing setup, so the first-run prompt won't reappear.
-            appPrefs.markBalancesSetUp()
-            appPrefs.markOpeningBalancesMigrated()
-            // Push straight away: an opening balance is not a transaction, so nothing else in
-            // the sync queue would carry it, and the spreadsheet is where it survives a reinstall.
-            spreadsheetManager.syncOpeningBalancesToSheet()
+            val method = repository.getPaymentMethodByNameCaseInsensitive(account.name)
+            if (method == null) {
+                onResult(false, "Could not find ${account.name}.")
+                return@launch
+            }
+            val clash = repository.getPaymentMethodByNameCaseInsensitive(trimmed)
+            if (clash != null && clash.id != method.id) {
+                onResult(false, "A payment method called that already exists.")
+                return@launch
+            }
+            repository.updatePaymentMethod(method.name, method.copy(name = trimmed))
+            pushAccountsToSheet()
+            onResult(true, null)
         }
     }
 
-    val openingBankBalance: StateFlow<Double> = account("Bank")
-        .map { it?.openingBalance ?: 0.0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    /**
+     * Adds an account and what it holds, in one step.
+     *
+     * A brand-new account has no history, so what it holds today *is* its opening balance - there
+     * is nothing to solve backwards for, unlike [setAccountBalanceById] on an account that has
+     * transactions behind it.
+     */
+    fun addAccount(name: String, balanceToday: Double, onResult: (Boolean, String?) -> Unit) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) {
+            onResult(false, "Name cannot be empty.")
+            return
+        }
+        viewModelScope.launch {
+            if (repository.getPaymentMethodByNameCaseInsensitive(trimmed) != null) {
+                onResult(false, "A payment method called that already exists.")
+                return@launch
+            }
+            repository.insertPaymentMethod(
+                PaymentMethod(name = trimmed, openingBalance = balanceToday)
+            )
+            appPrefs.markOpeningBalancesMigrated()
+            pushAccountsToSheet()
+            onResult(true, null)
+        }
+    }
 
-    val openingCashBalance: StateFlow<Double> = account("Cash")
-        .map { it?.openingBalance ?: 0.0 }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+    /**
+     * Pushes account names and balances to the spreadsheet straight away.
+     *
+     * Neither a name nor an opening balance is a transaction, so nothing in the sync queue would
+     * ever carry one - and the sheet keys payment methods by name, so an unpushed rename comes
+     * back as the old name on the next restore.
+     */
+    private suspend fun pushAccountsToSheet() {
+        spreadsheetManager.syncPaymentMethodsToSheet()
+        spreadsheetManager.syncOpeningBalancesToSheet()
+    }
+
     val themeMode: StateFlow<ThemeMode> = appPrefs.themeMode
     val authState: StateFlow<AuthState> = googleAuthManager.authState
 

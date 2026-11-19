@@ -1,12 +1,13 @@
 {
-  "versionCode": 381,
-  "versionName": "3.8.1",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.1/EssentialExpenseTracker-v3.8.1.apk",
+  "versionCode": 382,
+  "versionName": "3.8.2",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.2/EssentialExpenseTracker-v3.8.2.apk",
   "releaseNotes": [
-    "Accounts can be renamed, including Bank, Cash and UPI. Call them what your bank calls them - HDFC Bank, SBI - and every past transaction moves with the name",
-    "Add an account and its balance in one step, instead of adding it and then setting the balance separately",
-    "Name a payment method after the account it spends from and it links itself: UPI-HDFC draws on HDFC, Card SBI draws on SBI. You can still set it by hand, and the guess never overrides a choice you made",
-    "Settings now lists every account with its balance, not just a fixed Bank and Cash pair",
+    "Rename an account straight from Settings, where its balance is shown - no need to go to Payment Methods for it",
+    "Add another account, and what it holds today, from the same place",
+    "The first-run balance prompt now asks about the accounts you actually have, by name, instead of a fixed Bank and Cash pair",
+    "Fixed: the first-run prompt silently discarded what you typed if you had renamed Bank or Cash. Nothing was saved and nothing said so",
+    "A balance field left blank is no longer taken as zero - it is left untouched, so a balance restored from your spreadsheet survives",
     "Installs over the top of 3.6.0 or later"
   ],
   "forceUpdate": false

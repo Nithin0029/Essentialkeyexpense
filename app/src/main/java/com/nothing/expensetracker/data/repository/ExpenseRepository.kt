@@ -417,13 +417,6 @@ class ExpenseRepository @Inject constructor(
         return true
     }
 
-    /** Sets an account's balance by name, for the onboarding prompt's Bank and Cash fields. */
-    suspend fun setAccountBalanceTodayByName(name: String, balanceToday: Double): Boolean {
-        val account = getAccountRollUpOnce().accounts
-            .find { it.name.equals(name, ignoreCase = true) } ?: return false
-        return setAccountBalanceToday(account.id, balanceToday)
-    }
-
     /** Points a payment method at the account it draws on, or makes it an account itself. */
     suspend fun setFundingAccount(method: PaymentMethod, fundedById: Long?) {
         paymentMethodDao.updatePaymentMethod(method.copy(fundedById = fundedById))

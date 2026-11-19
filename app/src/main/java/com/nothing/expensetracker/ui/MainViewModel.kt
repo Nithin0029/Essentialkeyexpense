@@ -69,16 +69,34 @@ class MainViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     /**
-     * Records the balances the user is holding right now.
+     * Every account that holds money, for the first-run prompt to ask about by name.
+     *
+     * Read separately from [uiState] because the prompt shows over the loading and empty states
+     * too, where there is no dashboard data to take the accounts from.
+     */
+    val accounts: StateFlow<List<AccountBalance>> = combine(
+        repository.getAllPaymentMethods().distinctUntilChanged(),
+        repository.getTotalsByPaymentMethod().distinctUntilChanged()
+    ) { methods, totals ->
+        rollUpAccountBalances(methods, totals).accounts
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Records the balances the user is holding right now, one account at a time.
      *
      * Solves for the opening balance rather than storing the figure directly, so the number is
      * correct whether this is a brand-new install with no transactions (where the two are the
      * same) or one that has just restored a history from the spreadsheet.
+     *
+     * Keyed by account id. It used to write to the names "Bank" and "Cash", which returned false
+     * without a word once an account had been renamed — so everything the user typed was thrown
+     * away while setup was still recorded as finished.
      */
-    fun completeBalanceSetup(bankNow: Double, cashNow: Double) {
+    fun completeBalanceSetup(balances: Map<Long, Double>) {
         viewModelScope.launch {
-            repository.setAccountBalanceTodayByName("Bank", bankNow)
-            repository.setAccountBalanceTodayByName("Cash", cashNow)
+            balances.forEach { (id, balance) ->
+                repository.setAccountBalanceToday(id, balance)
+            }
             appPrefs.markBalancesSetUp()
             // The accounts own these numbers now, so the one-shot copy out of preferences must
             // not run later and overwrite what the user just typed.

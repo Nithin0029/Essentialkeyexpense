@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -16,12 +17,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.CloudDownload
@@ -35,6 +38,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -49,6 +54,8 @@ import java.util.*
 
 enum class MpinVerifyReason {
     EDIT_ACCOUNT_BALANCE,
+    RENAME_ACCOUNT,
+    ADD_ACCOUNT,
     DISABLE_MPIN
 }
 
@@ -69,11 +76,12 @@ fun SettingsScreen(
     val authState by viewModel.authState.collectAsState()
     val spreadsheetState by viewModel.spreadsheetState.collectAsState()
     val restoreState by viewModel.restoreState.collectAsState()
-    val currentBankBalance by viewModel.currentBankBalance.collectAsState()
-    val currentCashBalance by viewModel.currentCashBalance.collectAsState()
 
-    // Which account the balance dialog is about. Null means it is closed.
+    // Which account each dialog is about. Null means it is closed.
     var accountToEdit by remember { mutableStateOf<AccountBalance?>(null) }
+    var accountToRename by remember { mutableStateOf<AccountBalance?>(null) }
+    var showAddAccount by remember { mutableStateOf(false) }
+    // Held while the MPIN is being entered, since the dialog it belongs to opens afterwards.
     var pendingAccount by remember { mutableStateOf<AccountBalance?>(null) }
     var showMpinVerifyDialog by remember { mutableStateOf(false) }
     var mpinVerifyReason by remember { mutableStateOf<MpinVerifyReason?>(null) }
@@ -127,6 +135,23 @@ fun SettingsScreen(
                         showMpinVerifyDialog = true
                     } else {
                         accountToEdit = account
+                    }
+                },
+                onRenameAccount = { account ->
+                    if (mpinEnabled) {
+                        pendingAccount = account
+                        mpinVerifyReason = MpinVerifyReason.RENAME_ACCOUNT
+                        showMpinVerifyDialog = true
+                    } else {
+                        accountToRename = account
+                    }
+                },
+                onAddAccount = {
+                    if (mpinEnabled) {
+                        mpinVerifyReason = MpinVerifyReason.ADD_ACCOUNT
+                        showMpinVerifyDialog = true
+                    } else {
+                        showAddAccount = true
                     }
                 }
             )
@@ -345,6 +370,36 @@ fun SettingsScreen(
         )
     }
 
+    if (accountToRename != null) {
+        val target = accountToRename!!
+        RenameAccountDialog(
+            currentName = target.name,
+            onDismiss = { accountToRename = null },
+            onSave = { newName ->
+                viewModel.renameAccount(target, newName) { ok, message ->
+                    if (!ok && message != null) {
+                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+                accountToRename = null
+            }
+        )
+    }
+
+    if (showAddAccount) {
+        AddAccountDialog(
+            onDismiss = { showAddAccount = false },
+            onSave = { name, balance ->
+                viewModel.addAccount(name, balance) { ok, message ->
+                    if (!ok && message != null) {
+                        Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                    }
+                }
+                showAddAccount = false
+            }
+        )
+    }
+
     if (showMpinVerifyDialog) {
         MpinVerifyDialog(
             onDismiss = {
@@ -358,6 +413,11 @@ fun SettingsScreen(
                         accountToEdit = pendingAccount
                         pendingAccount = null
                     }
+                    MpinVerifyReason.RENAME_ACCOUNT -> {
+                        accountToRename = pendingAccount
+                        pendingAccount = null
+                    }
+                    MpinVerifyReason.ADD_ACCOUNT -> showAddAccount = true
                     MpinVerifyReason.DISABLE_MPIN -> {
                         mpinViewModel.removeMpin()
                         biometricEnabled = false
@@ -882,7 +942,9 @@ fun GoogleSyncSettingsCard(
 @Composable
 fun FinancialSettingsCard(
     accounts: List<AccountBalance>,
-    onEditAccount: (AccountBalance) -> Unit
+    onEditAccount: (AccountBalance) -> Unit,
+    onRenameAccount: (AccountBalance) -> Unit,
+    onAddAccount: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -911,19 +973,68 @@ fun FinancialSettingsCard(
             // their account held before their first ever transaction, and after a restore the
             // opening value is gone anyway. The opening balance shown underneath is derived.
             accounts.forEach { account ->
+                // Keyed by id rather than by position, so an open menu cannot end up attached
+                // to a different account when the list reorders after a rename.
+                var menuOpen by remember(account.id) { mutableStateOf(false) }
+
                 SettingRow(
                     label = "${account.name} Today",
                     value = formatCurrency(account.balance),
                     subtitle = "Opening: ${formatCurrency(account.openingBalance)}",
                     action = {
-                        IconButton(onClick = { onEditAccount(account) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit ${account.name}", tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = "Options for ${account.name}",
+                                    tint = Color.Gray,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = menuOpen,
+                                onDismissRequest = { menuOpen = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Set balance today") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        onEditAccount(account)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Rename") },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, modifier = Modifier.size(20.dp))
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        onRenameAccount(account)
+                                    }
+                                )
+                            }
                         }
                     }
                 )
 
                 HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
             }
+
+            // Adding an account here as well as on the Payment Methods screen: a second bank is
+            // something you think of while looking at the first one's balance.
+            TextButton(
+                onClick = onAddAccount,
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add account")
+            }
+
+            HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
 
             SettingRow(
                 label = "Currency",
@@ -1322,4 +1433,132 @@ fun AutopayManagementCard(
             }
         }
     }
+}
+
+
+/**
+ * Renames an account from the card its balance sits on.
+ *
+ * The name is not a label over the top of the data - every transaction is recorded against it,
+ * and the rename rewrites all of them, so the explanation says so plainly. Someone who thinks a
+ * rename might move their money will never use it.
+ */
+@Composable
+private fun RenameAccountDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename account", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column {
+                Text(
+                    text = "Call it what your bank calls it \u2014 SBI, HDFC Bank. Every transaction " +
+                        "recorded against \"" + currentName + "\" moves with the name, so no " +
+                        "balance changes.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("Account name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(text) },
+                enabled = text.isNotBlank() && text.trim() != currentName
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        }
+    )
+}
+
+/**
+ * Adds an account, and what it holds, in one step.
+ *
+ * Only accounts are offered here, not cards or UPI handles: this card is a list of balances, and
+ * a rail that spends from an account holds no balance of its own. Those are still added on the
+ * Payment Methods screen, where the funding account can be chosen.
+ */
+@Composable
+private fun AddAccountDialog(
+    onDismiss: () -> Unit,
+    onSave: (String, Double) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var balanceText by remember { mutableStateOf("") }
+
+    fun isAcceptable(value: String) = value.isEmpty() || value.toDoubleOrNull() != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add account", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Column {
+                Text(
+                    text = "An account holds money of its own \u2014 a second bank account, a wallet. " +
+                        "A card or UPI handle that spends from one of these is a payment method, " +
+                        "added under Payment Methods.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Account name") },
+                    placeholder = { Text("SBI Bank") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = balanceText,
+                    onValueChange = { if (isAcceptable(it)) balanceText = it },
+                    label = { Text("Balance today (optional)") },
+                    placeholder = { Text("0") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Decimal,
+                        imeAction = ImeAction.Done
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(name, balanceText.toDoubleOrNull() ?: 0.0) },
+                enabled = name.isNotBlank()
+            ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        }
+    )
 }
