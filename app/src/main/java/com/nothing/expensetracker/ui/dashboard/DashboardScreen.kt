@@ -36,12 +36,17 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val needsBalanceSetup by viewModel.needsBalanceSetup.collectAsState()
+    val setupAccounts by viewModel.accounts.collectAsState()
 
     // Shown once per install, over whichever dashboard state is rendering. The dashboard is the
     // first screen past the MPIN gate, so this is the earliest point the user can be asked.
-    if (needsBalanceSetup) {
+    //
+    // Held back until the accounts exist: they are seeded on the first launch, and a prompt with
+    // no fields in it would ask for balances it had nowhere to put.
+    if (needsBalanceSetup && setupAccounts.isNotEmpty()) {
         InitialBalanceDialog(
-            onConfirm = { bankNow, cashNow -> viewModel.completeBalanceSetup(bankNow, cashNow) },
+            accounts = setupAccounts,
+            onConfirm = { balances -> viewModel.completeBalanceSetup(balances) },
             onSkip = { viewModel.skipBalanceSetup() }
         )
     }
