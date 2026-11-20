@@ -136,6 +136,55 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
+     * Deletes an account from the card its balance is shown on.
+     *
+     * Only the cases with nothing depending on them are done here. An account carrying
+     * transactions has a real question behind it — move them, or delete them too — and that
+     * question is already answered on the Payment Methods screen; asking it twice, in two
+     * implementations, is how the two would come to disagree about where money went.
+     */
+    fun deleteAccount(account: AccountBalance, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            val methods = repository.getPaymentMethodsOnce()
+            val target = methods.find { it.id == account.id }
+            if (target == null) {
+                onResult(false, "Could not find ${account.name}.")
+                return@launch
+            }
+
+            if (methods.count { it.isAccount } <= 1) {
+                onResult(false, "At least one account has to hold your money.")
+                return@launch
+            }
+
+            val rails = methods.filter { it.fundedById == account.id }
+            if (rails.isNotEmpty()) {
+                onResult(false, railsBlockMessage(rails, account.name))
+                return@launch
+            }
+
+            val used = repository.getPaymentMethodUsageCount(target.name)
+            if (used > 0) {
+                val plural = if (used == 1) "transaction" else "transactions"
+                onResult(
+                    false,
+                    // Kept short on purpose: a Toast clips at two lines, and the end of this
+                    // sentence is the part that says what to do about it.
+                    "${account.name} is on $used $plural. Move or delete them under Payment Methods."
+                )
+                return@launch
+            }
+
+            repository.deletePaymentMethod(target)
+            // Payment methods carry no syncStatus, so the removal has to be pushed here rather
+            // than queued: nothing else would ever carry it.
+            spreadsheetManager.deletePaymentMethodFromSheet(target.name)
+            spreadsheetManager.syncOpeningBalancesToSheet()
+            onResult(true, null)
+        }
+    }
+
+    /**
      * Pushes account names and balances to the spreadsheet straight away.
      *
      * Neither a name nor an opening balance is a transaction, so nothing in the sync queue would

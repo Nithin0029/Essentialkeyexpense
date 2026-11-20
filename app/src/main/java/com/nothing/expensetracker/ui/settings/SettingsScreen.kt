@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Edit
@@ -56,6 +57,7 @@ enum class MpinVerifyReason {
     EDIT_ACCOUNT_BALANCE,
     RENAME_ACCOUNT,
     ADD_ACCOUNT,
+    DELETE_ACCOUNT,
     DISABLE_MPIN
 }
 
@@ -80,6 +82,7 @@ fun SettingsScreen(
     // Which account each dialog is about. Null means it is closed.
     var accountToEdit by remember { mutableStateOf<AccountBalance?>(null) }
     var accountToRename by remember { mutableStateOf<AccountBalance?>(null) }
+    var accountToDelete by remember { mutableStateOf<AccountBalance?>(null) }
     var showAddAccount by remember { mutableStateOf(false) }
     // Held while the MPIN is being entered, since the dialog it belongs to opens afterwards.
     var pendingAccount by remember { mutableStateOf<AccountBalance?>(null) }
@@ -152,6 +155,15 @@ fun SettingsScreen(
                         showMpinVerifyDialog = true
                     } else {
                         showAddAccount = true
+                    }
+                },
+                onDeleteAccount = { account ->
+                    if (mpinEnabled) {
+                        pendingAccount = account
+                        mpinVerifyReason = MpinVerifyReason.DELETE_ACCOUNT
+                        showMpinVerifyDialog = true
+                    } else {
+                        accountToDelete = account
                     }
                 }
             )
@@ -386,6 +398,23 @@ fun SettingsScreen(
         )
     }
 
+    if (accountToDelete != null) {
+        val target = accountToDelete!!
+        DeleteAccountDialog(
+            account = target,
+            onDismiss = { accountToDelete = null },
+            onConfirm = {
+                viewModel.deleteAccount(target) { ok, message ->
+                    val text = if (ok) "${target.name} deleted" else message
+                    if (text != null) {
+                        Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+                    }
+                }
+                accountToDelete = null
+            }
+        )
+    }
+
     if (showAddAccount) {
         AddAccountDialog(
             onDismiss = { showAddAccount = false },
@@ -418,6 +447,10 @@ fun SettingsScreen(
                         pendingAccount = null
                     }
                     MpinVerifyReason.ADD_ACCOUNT -> showAddAccount = true
+                    MpinVerifyReason.DELETE_ACCOUNT -> {
+                        accountToDelete = pendingAccount
+                        pendingAccount = null
+                    }
                     MpinVerifyReason.DISABLE_MPIN -> {
                         mpinViewModel.removeMpin()
                         biometricEnabled = false
@@ -944,7 +977,8 @@ fun FinancialSettingsCard(
     accounts: List<AccountBalance>,
     onEditAccount: (AccountBalance) -> Unit,
     onRenameAccount: (AccountBalance) -> Unit,
-    onAddAccount: () -> Unit
+    onAddAccount: () -> Unit,
+    onDeleteAccount: (AccountBalance) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1013,6 +1047,21 @@ fun FinancialSettingsCard(
                                     onClick = {
                                         menuOpen = false
                                         onRenameAccount(account)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Delete", color = Color(0xFFD71921)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = null,
+                                            tint = Color(0xFFD71921),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    onClick = {
+                                        menuOpen = false
+                                        onDeleteAccount(account)
                                     }
                                 )
                             }
@@ -1556,6 +1605,47 @@ private fun AddAccountDialog(
                 onClick = { onSave(name, balanceText.toDoubleOrNull() ?: 0.0) },
                 enabled = name.isNotBlank()
             ) { Text("Add") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }
+        }
+    )
+}
+
+
+/**
+ * Confirms deleting an account.
+ *
+ * States the balance that stops counting, because the headline figure on the dashboard changes
+ * the moment this goes through and a total that moves unexplained is worse than one that drops.
+ * What the account still carries is checked afterwards, and reported by name.
+ */
+@Composable
+private fun DeleteAccountDialog(
+    account: AccountBalance,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete ${account.name}?", color = MaterialTheme.colorScheme.onSurface) },
+        text = {
+            Text(
+                text = "Its ${formatCurrency(account.balance)} stops counting towards your total " +
+                    "assets. If it still carries transactions, or a card or UPI handle draws on " +
+                    "it, nothing is deleted and you will be told what is in the way.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFD71921),
+                    contentColor = Color.White
+                )
+            ) { Text("Delete") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", color = Color.Gray) }

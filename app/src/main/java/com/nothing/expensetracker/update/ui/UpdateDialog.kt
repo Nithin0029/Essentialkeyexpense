@@ -71,6 +71,27 @@ fun UpdateDialog(
                         )
                     }
                 }
+
+                HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+
+                // Play Protect shows "Harmful app blocked" for anything it does not recognise,
+                // and this app installs outside the Play Store, draws an overlay and installs
+                // its own updates - the shape it watches for. Nothing was found in the build;
+                // saying so here, before the system dialog appears, is the difference between a
+                // warning someone expects and one that stops them mid-update.
+                Text(
+                    text = "Android may say \"Harmful app blocked\" while this installs. Tap " +
+                        "\"Install anyway\" - the small text, not the OK button.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.LightGray
+                )
+                Text(
+                    text = "That warning appears for every app installed outside the Play " +
+                        "Store. This update is signed with the same key as the copy you are " +
+                        "running, which is why Android will let it replace it.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray
+                )
             }
         },
         confirmButton = {

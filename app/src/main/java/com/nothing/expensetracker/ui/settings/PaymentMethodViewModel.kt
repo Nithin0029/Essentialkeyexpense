@@ -125,14 +125,35 @@ class PaymentMethodViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Deletes a payment method, including the ones that ship with the app.
+     *
+     * The old guard refused anything marked `isSystem`, because balances were once tracked
+     * against the literal names "Bank", "UPI" and "Cash" in SQL. Accounts replaced that in
+     * 3.8.0, so what decides this now is not where a method came from but what still depends
+     * on it — which is checked below, and reported by name rather than as a flat refusal.
+     */
     fun deletePaymentMethod(method: PaymentMethod, onResult: (Boolean, String?) -> Unit) {
-        if (method.isSystem) {
-            onResult(false, "Default payment methods can't be deleted since balances are tracked against them.")
-            return
-        }
         viewModelScope.launch {
             if (repository.getPaymentMethodCount() <= 1) {
                 onResult(false, "At least one payment method must exist.")
+                return@launch
+            }
+
+            val methods = repository.getPaymentMethodsOnce()
+
+            // Deleting the last account would leave every transaction pointing at nothing, which
+            // the dashboard can only report as unassigned: money with nowhere to sit.
+            if (method.isAccount && methods.count { it.isAccount } <= 1) {
+                onResult(false, "At least one account has to hold your money.")
+                return@launch
+            }
+
+            // A rail whose account disappears becomes an account in its own right at a zero
+            // balance, and spending that used to come off this one quietly stops doing so.
+            val rails = methods.filter { it.fundedById == method.id }
+            if (rails.isNotEmpty()) {
+                onResult(false, railsBlockMessage(rails, method.name))
                 return@launch
             }
 
@@ -169,5 +190,20 @@ class PaymentMethodViewModel @Inject constructor(
             spreadsheetManager.deletePaymentMethodFromSheet(method.name)
             onResult(true, null)
         }
+    }
+}
+
+/**
+ * Why an account cannot go yet, named rather than merely refused.
+ *
+ * "Cannot delete" with no subject leaves the user hunting; naming the rail says exactly what to
+ * change and where.
+ */
+internal fun railsBlockMessage(rails: List<PaymentMethod>, accountName: String): String {
+    val names = rails.joinToString(", ") { it.name }
+    return if (rails.size == 1) {
+        "$names draws on $accountName. Point it at another account first, under Payment Methods."
+    } else {
+        "$names draw on $accountName. Point them at another account first, under Payment Methods."
     }
 }
