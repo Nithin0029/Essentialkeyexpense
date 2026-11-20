@@ -1,13 +1,12 @@
 {
-  "versionCode": 382,
-  "versionName": "3.8.2",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.2/EssentialExpenseTracker-v3.8.2.apk",
+  "versionCode": 383,
+  "versionName": "3.8.3",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.3/EssentialExpenseTracker-v3.8.3.apk",
   "releaseNotes": [
-    "Rename an account straight from Settings, where its balance is shown - no need to go to Payment Methods for it",
-    "Add another account, and what it holds today, from the same place",
-    "The first-run balance prompt now asks about the accounts you actually have, by name, instead of a fixed Bank and Cash pair",
-    "Fixed: the first-run prompt silently discarded what you typed if you had renamed Bank or Cash. Nothing was saved and nothing said so",
-    "A balance field left blank is no longer taken as zero - it is left untouched, so a balance restored from your spreadsheet survives",
+    "Delete an account you no longer use, from Settings or from Payment Methods. Bank, Cash and UPI can go too - the lock on them was left over from when balances were tracked by name",
+    "An account is kept, not deleted, if transactions are still on it or a card or UPI handle still draws on it - and you are told which, by name, instead of just being refused",
+    "Your last remaining account can never be deleted, since the money would have nowhere to sit",
+    "The update dialog now explains Android's \"Harmful app blocked\" warning before it appears, and says to tap Install anyway",
     "Installs over the top of 3.6.0 or later"
   ],
   "forceUpdate": false

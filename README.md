@@ -52,6 +52,19 @@ and install it. Android will ask you to allow installs from an unknown source.
 
 Requires Android 8.0 (API 26) or newer.
 
+> **"Harmful app blocked" — expected, and what to tap.** Google Play Protect scans every app
+> installed from outside the Play Store and warns about any signing key it does not recognise.
+> Nothing was found in the build: the message is about where the app came from, not what is in
+> it. Tap **Install anyway** — the small text, not the OK button, which cancels.
+>
+> This app trips the check harder than most because it asks for two permissions that are a
+> known pair in overlay malware: `SYSTEM_ALERT_WINDOW`, for the floating quick-add, and
+> `REQUEST_INSTALL_PACKAGES`, so it can install its own updates. Both are used for exactly
+> those two features and nothing else; the source is here to read.
+>
+> The warning goes away for good only by publishing through the Play Store, which makes the
+> signing key known to Play Protect.
+
 > **Upgrading from 3.5.0 or earlier:** 3.6.0 is signed with a new key, so Android cannot upgrade
 > in place. **Open the old app and sync first**, then uninstall, install 3.6.0, and sign in to
 > restore from your spreadsheet. On 3.5.0 the sync was push-only, so anything unsynced exists

@@ -461,24 +461,17 @@ fun PaymentMethodItem(
                 }
             }
 
-            if (method.isSystem) {
-                IconButton(onClick = {}, enabled = false) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Locked",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            } else {
-                IconButton(onClick = onDeleteClick) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete",
-                        tint = Color.Red.copy(alpha = 0.7f),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+            // Deleting used to be locked for the methods the app ships with, on the same
+            // stale grounds that locked renaming: balances were tracked against their names.
+            // What stands in the way now is what depends on the method, which the view model
+            // checks and names, rather than which list it came from.
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Delete ${method.name}",
+                    tint = Color.Red.copy(alpha = 0.7f),
+                    modifier = Modifier.size(24.dp)
+                )
             }
         }
     }

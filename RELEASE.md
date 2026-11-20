@@ -100,19 +100,53 @@ If `keystore.properties` is missing, the build still succeeds but produces
 
 It must print certificate details, not `DOES NOT VERIFY`.
 
-### 3. Publish the GitHub release first
+### 3. Draft the GitHub release — do not publish it yet
 
-Tag `vX.Y.Z` on `master`, and upload the APK **renamed to match `apkUrl` exactly**. The convention
-is `EssentialExpenseTracker-vX.Y.Z.apk`.
+Create the release as a **draft**: tag `vX.Y.Z`, target `master`, notes written, and the APK
+uploaded **renamed to match `apkUrl` exactly**. The convention is
+`EssentialExpenseTracker-vX.Y.Z.apk`.
 
 A mismatch here is how the v3.5.0 release broke: `version.json` pointed at
 `EssentialExpenseTracker-v3.5.0.apk` while the uploaded asset was named
 `Essential.Expense.Tracker.v3.5.0-beta.apk`, so every in-app update attempt 404'd.
 
-### 4. Only then push `version.json` to `master`
+A draft creates no tag and publishes no asset. That matters for the next step.
 
-The updater reads `version.json` from the `master` branch. Pushing it before the release asset
-exists advertises a download URL that 404s to anyone who checks in the gap.
+### 4. Merge `dev` into `master`, then publish the draft
+
+```bash
+git checkout master
+```
+
+```bash
+git merge dev --no-edit
+```
+
+```bash
+git push origin master
+```
+
+```bash
+git checkout dev
+```
+
+Then open the draft and press **Publish**.
+
+**Two constraints pull against each other here, and the draft is what satisfies both.**
+
+*The tag is created when the release is published*, at whatever `master` points to in that moment.
+Publish before merging and the tag lands on the previous release's code. That is not theoretical:
+every tag from v3.7.1 through v3.8.2 pointed one version behind until they were corrected with
+`git tag -f`, because this file used to say "publish first". The attached APKs were right, so
+nobody installed the wrong app — but anyone cloning at a tag, or downloading the auto-generated
+source zip, got the release before it.
+
+*The asset must exist before `version.json` advertises it.* `version.json` reaches `master` as
+part of the merge, and the download URL only goes live when the draft is published, so there is a
+window in between where the updater would see a 404. Have the draft fully prepared before you
+merge and that window is the few seconds it takes to click Publish.
+
+`--no-edit` on the merge is deliberate: without it git opens Vim for the merge message.
 
 ### 5. Verify
 
