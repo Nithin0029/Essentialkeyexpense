@@ -119,7 +119,14 @@ class PaymentMethodViewModel @Inject constructor(
             if (existing != null && existing.id != method.id) {
                 onResult(false, "Payment method already exists.")
             } else {
-                repository.updatePaymentMethod(method.name, method.copy(name = trimmedName))
+                val oldName = method.name
+                repository.updatePaymentMethod(oldName, method.copy(name = trimmedName))
+                // Pushed here rather than left to the next sync: payment methods have no
+                // syncStatus, so nothing in the queue would ever carry a rename - and the old
+                // row has to go, or the sheet lists the account under both names and a restore
+                // recreates the one that was renamed away.
+                spreadsheetManager.deletePaymentMethodFromSheet(oldName)
+                spreadsheetManager.syncPaymentMethodsToSheet()
                 onResult(true, null)
             }
         }
@@ -154,6 +161,14 @@ class PaymentMethodViewModel @Inject constructor(
             val rails = methods.filter { it.fundedById == method.id }
             if (rails.isNotEmpty()) {
                 onResult(false, railsBlockMessage(rails, method.name))
+                return@launch
+            }
+
+            // A rule outlives the screen it was made on. Deleting the method underneath it
+            // leaves it firing every month into a name nothing matches.
+            val rules = repository.autopayRulesUsing(method.name)
+            if (rules.isNotEmpty()) {
+                onResult(false, autopayBlockMessage(rules.size, method.name))
                 return@launch
             }
 
@@ -199,11 +214,19 @@ class PaymentMethodViewModel @Inject constructor(
  * "Cannot delete" with no subject leaves the user hunting; naming the rail says exactly what to
  * change and where.
  */
+internal fun autopayBlockMessage(count: Int, accountName: String): String {
+    val rules = if (count == 1) "An autopay rule" else "$count autopay rules"
+    val verb = if (count == 1) "uses" else "use"
+    return "$rules $verb $accountName. Change " +
+        (if (count == 1) "it" else "them") + " under Autopay first."
+}
+
 internal fun railsBlockMessage(rails: List<PaymentMethod>, accountName: String): String {
+    // Kept to two lines: a Toast clips there, and it was clipping mid-instruction.
     val names = rails.joinToString(", ") { it.name }
     return if (rails.size == 1) {
-        "$names draws on $accountName. Point it at another account first, under Payment Methods."
+        "$names draws on $accountName. Point it elsewhere first."
     } else {
-        "$names draw on $accountName. Point them at another account first, under Payment Methods."
+        "$names draw on $accountName. Point them elsewhere first."
     }
 }

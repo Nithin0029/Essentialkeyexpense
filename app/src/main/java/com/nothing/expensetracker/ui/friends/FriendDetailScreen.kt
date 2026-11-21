@@ -283,7 +283,9 @@ fun SettleUpDialog(
     onConfirm: (Double, String, String) -> Unit
 ) {
     var amount by remember { mutableStateOf(Math.abs(currentBalance).toString()) }
-    var selectedMethod by remember { mutableStateOf("UPI") }
+    // Empty until the list arrives; "UPI" may have been renamed or deleted, and a settlement
+    // recorded against a method that is not there comes off no balance.
+    var selectedMethod by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("Settlement") }
 
     val isCredit = currentBalance > 0
@@ -293,6 +295,12 @@ fun SettleUpDialog(
         availableMethods = paymentMethods
     )
     var methodExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(paymentMethods) {
+        if (selectedMethod.isEmpty() && paymentMethods.isNotEmpty()) {
+            selectedMethod = TransactionConstants.defaultMethod(paymentMethods)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,

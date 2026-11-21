@@ -27,6 +27,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
@@ -76,30 +78,38 @@ class AutopayWorker @AssistedInject constructor(
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
             val today = LocalDate.now()
-            val monthKey = today.format(DateTimeFormatter.ofPattern("yyyy-MM"))
+            val zone = ZoneId.systemDefault()
+            // The time of day is the moment it fired, so several rules landing at once keep an
+            // order; the *date* is the day each payment was owed for, which is the part that
+            // matters. Dating a day-31 rule that fires on the 1st "today" filed it in the next
+            // month, where every report then counted it.
+            val timeOfDay = LocalTime.now(zone)
             val rules = autopayRepository.getActiveAutopayRules()
             var firedAny = false
 
             rules.forEach { rule ->
-                if (rule.lastRunMonth == monthKey) return@forEach
+                // One date per month still owed, so a month the worker never ran in is caught up
+                // rather than skipped.
+                val dueDates = autopayDueDates(rule, today, zone)
+                if (dueDates.isEmpty()) return@forEach
 
-                val targetDay = rule.dayOfMonth.coerceAtMost(today.lengthOfMonth())
-                if (today.dayOfMonth < targetDay) return@forEach
-
-                val expense = Expense(
-                    amount = rule.amount,
-                    description = rule.description,
-                    category = rule.category,
-                    type = rule.type,
-                    paymentMethod = rule.paymentMethod,
-                    friendId = rule.friendId,
-                    notes = "Autopay",
-                    timestamp = System.currentTimeMillis(),
-                    syncStatus = "Pending"
-                )
-                expenseRepository.insertExpense(expense)
-                autopayRepository.markRun(rule.id, monthKey)
-                notifyUser(rule)
+                dueDates.forEach { dueDate ->
+                    val expense = Expense(
+                        amount = rule.amount,
+                        description = rule.description,
+                        category = rule.category,
+                        type = rule.type,
+                        paymentMethod = rule.paymentMethod,
+                        friendId = rule.friendId,
+                        notes = "Autopay",
+                        timestamp = dueDate.atTime(timeOfDay).atZone(zone).toInstant().toEpochMilli(),
+                        syncStatus = "Pending"
+                    )
+                    expenseRepository.insertExpense(expense)
+                }
+                // Only the newest month is stamped; the ones before it are implied by it.
+                autopayRepository.markRun(rule.id, monthKeyOf(dueDates.last()))
+                notifyUser(rule, dueDates)
                 firedAny = true
             }
 
@@ -113,13 +123,24 @@ class AutopayWorker @AssistedInject constructor(
         }
     }
 
-    private fun notifyUser(rule: AutopayRule) {
+    /** Says plainly when more than one month went in at once, rather than one quiet line. */
+    private fun notifyUser(rule: AutopayRule, dueDates: List<LocalDate>) {
         createChannel()
         val label = rule.description.ifBlank { rule.category }
+        val text = if (dueDates.size == 1) {
+            "${formatCurrency(rule.amount)} added via ${rule.paymentMethod}"
+        } else {
+            val months = dueDates.joinToString(", ") {
+                it.format(DateTimeFormatter.ofPattern("MMM"))
+            }
+            "${formatCurrency(rule.amount * dueDates.size)} via ${rule.paymentMethod} - " +
+                "${dueDates.size} months caught up ($months)"
+        }
         val notification = NotificationCompat.Builder(applicationContext, AUTOPAY_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_sync)
             .setContentTitle("Autopay: $label")
-            .setContentText("${formatCurrency(rule.amount)} added via ${rule.paymentMethod}")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()

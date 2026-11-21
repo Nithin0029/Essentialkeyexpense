@@ -23,6 +23,7 @@ import com.nothing.expensetracker.data.local.Category
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.ui.history.TransactionConstants
 import android.widget.Toast
+import com.nothing.expensetracker.util.applyPickedDate
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -167,7 +168,12 @@ fun EditTransactionContent(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(onClick = {
-                    datePickerState.selectedDateMillis?.let { timestamp = it }
+                    // Only the day changes. The picker reports UTC midnight, and assigning it
+                    // whole threw the time of day away - which is why every edited transaction
+                    // read 05:30 and why a day's transactions could no longer be put in order.
+                    datePickerState.selectedDateMillis?.let {
+                        timestamp = applyPickedDate(it, timestamp)
+                    }
                     showDatePicker = false
                 }) {
                     Text("OK")
@@ -264,8 +270,8 @@ fun EditTransactionContent(
                                     creditCategories
                                 )
                                 // Reset payment method if RAS was selected but is no longer valid
-                                if (paymentMethod == "RAS") {
-                                    paymentMethod = "UPI"
+                                if (paymentMethod == TransactionConstants.SETTLED_IN_KIND) {
+                                    paymentMethod = TransactionConstants.defaultMethod(paymentMethods)
                                 }
                             }
                             typeExpanded = false
@@ -309,8 +315,8 @@ fun EditTransactionContent(
                             category = c
                             categoryExpanded = false
                             // Reset payment method if RAS was selected but is no longer valid for the new category
-                            if (paymentMethod == "RAS" && !(type == "Credit" && category == "Friend")) {
-                                paymentMethod = "UPI"
+                            if (paymentMethod == TransactionConstants.SETTLED_IN_KIND && !(type == "Credit" && category == "Friend")) {
+                                paymentMethod = TransactionConstants.defaultMethod(paymentMethods)
                             }
                         }
                     )
@@ -356,8 +362,8 @@ fun EditTransactionContent(
                             onClick = {
                                 category = sub.name
                                 subcategoryExpanded = false
-                                if (paymentMethod == "RAS") {
-                                    paymentMethod = "UPI"
+                                if (paymentMethod == TransactionConstants.SETTLED_IN_KIND) {
+                                    paymentMethod = TransactionConstants.defaultMethod(paymentMethods)
                                 }
                             }
                         )

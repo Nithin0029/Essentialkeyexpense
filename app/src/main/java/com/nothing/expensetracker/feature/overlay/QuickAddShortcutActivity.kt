@@ -43,7 +43,9 @@ class QuickAddShortcutActivity : ComponentActivity() {
             // Empty until the live category list loads; resolved below instead of a hardcoded
             // guess like "Food" that could stop existing if the user deletes/renames it.
             var selectedCategory by remember { mutableStateOf("") }
-            var selectedMethod by remember { mutableStateOf("UPI") }
+            // Empty until the real list loads, as the category above is: a hardcoded "UPI"
+            // saves against a method the user may have renamed or deleted.
+            var selectedMethod by remember { mutableStateOf("") }
             var notesText by remember { mutableStateOf("") }
             var friendId by remember { mutableStateOf("") }
 
@@ -73,6 +75,12 @@ class QuickAddShortcutActivity : ComponentActivity() {
             val isFriendCategory = com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)
 
             val paymentMethods = com.nothing.expensetracker.ui.history.TransactionConstants.getAvailableMethods(selectedType, selectedCategory, userPaymentMethods)
+
+            LaunchedEffect(userPaymentMethods) {
+                if (selectedMethod.isEmpty() && userPaymentMethods.isNotEmpty()) {
+                    selectedMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(userPaymentMethods)
+                }
+            }
 
             Box(
                 modifier = Modifier
@@ -112,7 +120,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                     if (selectedType != "Debit") {
                                         selectedType = "Debit"
                                         selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories, availableCreditCategories)
-                                        if (selectedMethod == "RAS") selectedMethod = "UPI"
+                                        if (selectedMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND) selectedMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(userPaymentMethods)
                                     }
                                 },
                                 label = { Text("Debit (Expense)") }
@@ -123,7 +131,7 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                     if (selectedType != "Credit") {
                                         selectedType = "Credit"
                                         selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories, availableCreditCategories)
-                                        if (selectedMethod == "RAS") selectedMethod = "UPI"
+                                        if (selectedMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND) selectedMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(userPaymentMethods)
                                     }
                                 },
                                 label = { Text("Credit (Income)") }
@@ -145,8 +153,8 @@ class QuickAddShortcutActivity : ComponentActivity() {
                                         onClick = { 
                                             selectedCategory = cat
                                             catExpanded = false
-                                            if (selectedMethod == "RAS" && !com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)) {
-                                                selectedMethod = "UPI"
+                                            if (selectedMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND && !com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(selectedType, selectedCategory)) {
+                                                selectedMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(userPaymentMethods)
                                             }
                                         }
                                     )

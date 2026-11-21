@@ -1,12 +1,21 @@
 {
-  "versionCode": 383,
-  "versionName": "3.8.3",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.3/EssentialExpenseTracker-v3.8.3.apk",
+  "versionCode": 384,
+  "versionName": "3.8.4",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.4/EssentialExpenseTracker-v3.8.4.apk",
   "releaseNotes": [
-    "Delete an account you no longer use, from Settings or from Payment Methods. Bank, Cash and UPI can go too - the lock on them was left over from when balances were tracked by name",
-    "An account is kept, not deleted, if transactions are still on it or a card or UPI handle still draws on it - and you are told which, by name, instead of just being refused",
-    "Your last remaining account can never be deleted, since the money would have nowhere to sit",
-    "The update dialog now explains Android's \"Harmful app blocked\" warning before it appears, and says to tap Install anyway",
+    "Fixed: after renaming or deleting UPI, every new-transaction screen still opened on \"UPI\". Saving without touching the picker filed the money against a method that no longer existed, so it came off no balance. Screens now start on an account you actually have",
+    "Fixed: renaming an account left autopay rules pointing at the old name, so they fired into nothing every month while telling you they had worked. Rules now follow a rename, and an account cannot be deleted while a rule still uses it",
+    "Fixed: renaming left the old name in your spreadsheet as well as the new one, so restoring counted that account's opening balance twice",
+    "Fixed: a friend settling up in kind - buying the food instead of paying you back - is no longer reported as money the app could not place",
+    "Fixed: editing a transaction added a second copy to your spreadsheet instead of changing the first, so restoring could bring back the version from before the edit",
+    "Fixed: changing a transaction's date threw away its time, showing 05:30 on everything edited - and, worse, left a day's transactions with no recorded order",
+    "History and the spreadsheet are now in date order, newest first, within the day as well as across days",
+    "History can now filter by a payment method you have since deleted, which is where stranded transactions hide",
+    "Fixed: renaming a category left its budget behind under the old name, so the limit vanished from the Budgets screen while still sitting in your spreadsheet. Budgets now follow a rename, and are removed with the category",
+    "Fixed: renaming a category or a friend left autopay rules pointing at the old name. Rules now follow both, and a category cannot be deleted while a rule still spends into it",
+    "Fixed: a new autopay rule fired the moment it was saved if its day of the month had already passed - so a rule set up on the 20th for \"day 1\" charged you straight away instead of starting next month",
+    "Fixed: a month your phone spent switched off was skipped outright - rent or an SIP simply never appeared for it. Autopay now catches up the months it missed, up to three, and the notification says how many went in",
+    "Fixed: an autopay transaction was dated the day it happened to fire rather than the day it was due, so a payment due on the 31st could land in the next month's report",
     "Installs over the top of 3.6.0 or later"
   ],
   "forceUpdate": false

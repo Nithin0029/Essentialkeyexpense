@@ -28,7 +28,10 @@ data class FriendBalance(
 
 @Dao
 interface ExpenseDao {
-    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' ORDER BY timestamp DESC")
+    // id breaks the tie because ids are handed out in order, so it stands in for "entered
+    // later". Every row saved before the date picker stopped discarding the time of day shares
+    // one timestamp per day, and without this they come back in an arbitrary order.
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' ORDER BY timestamp DESC, id DESC")
     fun getAllExpenses(): Flow<List<Expense>>
 
     @Query("""
@@ -45,7 +48,9 @@ interface ExpenseDao {
             CASE WHEN :sort = 'HIGHEST_AMOUNT' THEN amount END DESC,
             CASE WHEN :sort = 'LOWEST_AMOUNT' THEN amount END ASC,
             CASE WHEN :sort = 'CATEGORY_AZ' THEN category END ASC,
-            CASE WHEN :sort = 'CATEGORY_ZA' THEN category END DESC
+            CASE WHEN :sort = 'CATEGORY_ZA' THEN category END DESC,
+            CASE WHEN :sort = 'OLDEST' THEN id END ASC,
+            CASE WHEN :sort != 'OLDEST' THEN id END DESC
     """)
     fun getFilteredExpenses(
         query: String,
@@ -117,7 +122,7 @@ interface ExpenseDao {
     """)
     fun getFriendBalances(): Flow<List<FriendBalance>>
 
-    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' AND friendId = :friendName AND (category = 'Friends' OR category = 'Friend') ORDER BY timestamp DESC")
+    @Query("SELECT * FROM expenses WHERE syncStatus != 'Deleted' AND friendId = :friendName AND (category = 'Friends' OR category = 'Friend') ORDER BY timestamp DESC, id DESC")
     fun getTransactionsByFriend(friendName: String): Flow<List<Expense>>
 
     @Query("UPDATE expenses SET friendId = NULL WHERE friendId = :friendName")

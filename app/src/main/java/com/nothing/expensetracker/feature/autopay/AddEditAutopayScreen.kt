@@ -219,7 +219,7 @@ private fun AutopayForm(
                             if (type != t) {
                                 type = t
                                 category = TransactionConstants.getInitialCategory(t, categories, availableCreditCategories)
-                                if (paymentMethod == "RAS") paymentMethod = "UPI"
+                                if (paymentMethod == TransactionConstants.SETTLED_IN_KIND) paymentMethod = TransactionConstants.defaultMethod(paymentMethods)
                             }
                             typeExpanded = false
                         }
@@ -253,8 +253,8 @@ private fun AutopayForm(
                         onClick = {
                             category = c
                             categoryExpanded = false
-                            if (paymentMethod == "RAS" && !(type == "Credit" && category == "Friend")) {
-                                paymentMethod = "UPI"
+                            if (paymentMethod == TransactionConstants.SETTLED_IN_KIND && !(type == "Credit" && category == "Friend")) {
+                                paymentMethod = TransactionConstants.defaultMethod(paymentMethods)
                             }
                         }
                     )

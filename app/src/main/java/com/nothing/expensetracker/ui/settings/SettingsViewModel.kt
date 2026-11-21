@@ -102,7 +102,12 @@ class SettingsViewModel @Inject constructor(
                 onResult(false, "A payment method called that already exists.")
                 return@launch
             }
-            repository.updatePaymentMethod(method.name, method.copy(name = trimmed))
+            val oldName = method.name
+            repository.updatePaymentMethod(oldName, method.copy(name = trimmed))
+            // The sheet keys payment methods by name, and the push only ever upserts. Without
+            // taking the old row out, the sheet ends up listing the account twice - and a
+            // restore brings both back, counting the opening balance in the total twice over.
+            spreadsheetManager.deletePaymentMethodFromSheet(oldName)
             pushAccountsToSheet()
             onResult(true, null)
         }
@@ -160,6 +165,12 @@ class SettingsViewModel @Inject constructor(
             val rails = methods.filter { it.fundedById == account.id }
             if (rails.isNotEmpty()) {
                 onResult(false, railsBlockMessage(rails, account.name))
+                return@launch
+            }
+
+            val rules = repository.autopayRulesUsing(account.name)
+            if (rules.isNotEmpty()) {
+                onResult(false, autopayBlockMessage(rules.size, account.name))
                 return@launch
             }
 
@@ -238,14 +249,6 @@ class SettingsViewModel @Inject constructor(
                 hasRestoredThisSession = false
             }
         }.launchIn(viewModelScope)
-    }
-
-    fun updateOpeningBankBalance(balance: Double) {
-        viewModelScope.launch { repository.setAccountOpeningBalanceByName("Bank", balance) }
-    }
-
-    fun updateOpeningCashBalance(balance: Double) {
-        viewModelScope.launch { repository.setAccountOpeningBalanceByName("Cash", balance) }
     }
 
     fun getSignInIntent() = googleAuthManager.getSignInIntent()

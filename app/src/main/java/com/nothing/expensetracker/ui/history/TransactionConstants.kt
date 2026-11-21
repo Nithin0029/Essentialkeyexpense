@@ -1,8 +1,28 @@
 package com.nothing.expensetracker.ui.history
 
 object TransactionConstants {
+    /** Re-exported so screens can name it without reaching into the repository layer. */
+    const val SETTLED_IN_KIND = com.nothing.expensetracker.data.repository.SETTLED_IN_KIND
+
     val TRANSACTION_TYPES = listOf("Debit", "Credit")
     val STANDARD_METHODS = listOf("UPI", "Cash", "Bank")
+
+    /**
+     * What a *new* transaction should start on, given the methods that actually exist.
+     *
+     * Every screen used to open with the literal "UPI". That was safe only while UPI could not
+     * be renamed or deleted; once it could, a screen opened on a method that no longer existed
+     * and anyone who did not touch the picker saved a transaction that came off no balance.
+     *
+     * Only for new entries. An existing transaction keeps whatever it was recorded against, even
+     * if that method has since gone — changing someone's record behind their back while they
+     * edit an unrelated field is worse than showing them a name they will recognise.
+     */
+    fun defaultMethod(available: List<String>): String =
+        available.firstOrNull { !it.equals(SETTLED_IN_KIND, ignoreCase = true) }
+            ?: available.firstOrNull()
+            ?: STANDARD_METHODS.first()
+
     /**
      * Credit categories now live in the `categories` table alongside Debit ones and are managed in
      * Category Management, so this list is only a fallback for the moment before the database Flow
@@ -29,7 +49,7 @@ object TransactionConstants {
     fun getAvailableMethods(type: String, category: String, availableMethods: List<String> = STANDARD_METHODS): List<String> {
         val methods = availableMethods.ifEmpty { STANDARD_METHODS }
         return if (type == "Credit" && category == "Friend") {
-            (methods + "RAS").distinct()
+            (methods + SETTLED_IN_KIND).distinct()
         } else {
             methods
         }

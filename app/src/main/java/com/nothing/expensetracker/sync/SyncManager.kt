@@ -127,7 +127,7 @@ class SyncManager @Inject constructor(
                 val success = if (isDelete) {
                     spreadsheetManager.deleteTransactionFromSheet(expense.id.toString())
                 } else {
-                    spreadsheetManager.addTransactionToSheet(expense)
+                    spreadsheetManager.upsertTransactionInSheet(expense)
                 }
 
                 if (success) {
@@ -146,6 +146,11 @@ class SyncManager @Inject constructor(
                     }
                     Log.i(tag, "[SYNC] TRANSACTION | Success | ID: ${expense.id}")
                 }
+            }
+            // Rows land in the order the queue drained, which is not the order the money
+            // moved. Sorted once per cycle rather than per row.
+            if (unsyncedExpenses.isNotEmpty()) {
+                spreadsheetManager.sortTransactionsSheet()
             }
         } catch (e: Exception) {
             Log.e(tag, "[SYNC] TRANSACTION | Loop Error", e)

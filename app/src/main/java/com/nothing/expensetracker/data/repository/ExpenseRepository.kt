@@ -88,13 +88,26 @@ class ExpenseRepository @Inject constructor(
         categoryDao.insertCategory(categoryWithPending)
     }
 
+    /**
+     * A category's name is its key in three places, not one: the transactions filed under it, the
+     * budget set against it, and any autopay rule that spends into it. Only the transactions were
+     * being rewritten, so a rename made the budget disappear from the budget screen - matched
+     * there against the categories that exist - while it sat untouched in the database and the
+     * spreadsheet, and left rules filing into a category that no longer existed.
+     */
     suspend fun updateCategory(oldName: String, category: Category) {
         val updatedCategory = category.copy(syncStatus = "Pending")
         if (oldName != updatedCategory.name) {
             expenseDao.updateCategoryNameInTransactions(oldName, updatedCategory.name)
+            budgetDao.updateCategoryNameInBudgets(oldName, updatedCategory.name)
+            autopayDao.updateCategoryNameInRules(oldName, updatedCategory.name)
         }
         categoryDao.updateCategory(updatedCategory)
     }
+
+    /** Rules that would be left pointing at nothing if this category went away. */
+    suspend fun autopayRulesUsingCategory(name: String): List<AutopayRule> =
+        autopayDao.autopayRulesUsingCategory(name)
 
     suspend fun countSubcategories(parentId: Long): Int {
         return categoryDao.countSubcategories(parentId)
@@ -124,6 +137,9 @@ class ExpenseRepository @Inject constructor(
 
         val count = expenseDao.countExpensesByCategory(category.name)
         if (count == 0) {
+            // The budget goes with it. Left behind it is a row nothing can show and nothing can
+            // reach, counted in the spreadsheet against a category that is gone.
+            budgetDao.markBudgetsDeletedForCategory(category.name)
             // Soft delete locally
             val deletedCategory = category.copy(syncStatus = "Deleted")
             categoryDao.updateCategory(deletedCategory)
@@ -164,7 +180,11 @@ class ExpenseRepository @Inject constructor(
 
     suspend fun deleteCategoryAndMoveTransactions(category: Category, replacementCategoryName: String) {
         expenseDao.updateCategoryNameInTransactions(category.name, replacementCategoryName)
-        
+        // The transactions move; the budget does not. Adding this category's limit to the
+        // replacement's would quietly change a figure the user set by hand, so the limit is
+        // removed with the category and the replacement keeps its own.
+        budgetDao.markBudgetsDeletedForCategory(category.name)
+
         // Soft delete locally
         val deletedCategory = category.copy(syncStatus = "Deleted")
         categoryDao.updateCategory(deletedCategory)
@@ -175,7 +195,8 @@ class ExpenseRepository @Inject constructor(
         
         // Mark all as deleted for sync
         affectedExpenses.forEach { deleteExpense(it) }
-        
+        budgetDao.markBudgetsDeletedForCategory(category.name)
+
         // Soft delete locally
         val deletedCategory = category.copy(syncStatus = "Deleted")
         categoryDao.updateCategory(deletedCategory)
@@ -330,12 +351,25 @@ class ExpenseRepository @Inject constructor(
         paymentMethodDao.insertPaymentMethod(method)
     }
 
+    /**
+     * Renames a payment method and everything recorded against the old name.
+     *
+     * Two tables store the name rather than the id — `expenses` and `autopay_rules` — and both
+     * have to move together. Transactions were always rewritten here; the rules were not, so a
+     * rename left them pointing at a method that no longer existed, and the scheduler went on
+     * creating transactions against that name every month. Money that came off no balance.
+     */
     suspend fun updatePaymentMethod(oldName: String, method: PaymentMethod) {
         if (oldName != method.name) {
             expenseDao.updatePaymentMethodNameInTransactions(oldName, method.name)
+            autopayDao.updatePaymentMethodNameInRules(oldName, method.name)
         }
         paymentMethodDao.updatePaymentMethod(method)
     }
+
+    /** The autopay rules that would be left pointing at nothing if [name] were deleted. */
+    suspend fun autopayRulesUsing(name: String): List<AutopayRule> =
+        autopayDao.autopayRulesUsing(name.trim())
 
     suspend fun deletePaymentMethod(method: PaymentMethod) {
         paymentMethodDao.deletePaymentMethod(method)

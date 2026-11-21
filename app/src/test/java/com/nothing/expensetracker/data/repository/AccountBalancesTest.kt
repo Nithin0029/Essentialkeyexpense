@@ -139,4 +139,38 @@ class AccountBalancesTest {
         assertTrue(rollUp.accounts.isEmpty())
         assertFalse(rollUp.hasUnassigned)
     }
+
+    @Test
+    fun `money a friend settled in kind is not missing money`() {
+        // A friend repaid by buying the food. Nothing reached an account, so no balance moves -
+        // but it must not be reported as money the app could not place either, or anyone who
+        // settles up this way carries a permanent warning that their totals are short.
+        val rollUp = rollUpAccountBalances(
+            listOf(bank, cash),
+            totals(
+                Triple("Bank", 0.0, 1_000.0),
+                Triple(SETTLED_IN_KIND, 800.0, 0.0)
+            )
+        )
+
+        assertFalse(rollUp.hasUnassigned)
+        assertEquals(0.0, rollUp.unassignedNet, 0.001)
+        assertEquals(49_000.0, rollUp.balanceOf("Bank"), 0.001)
+        // 50,000 - 1,000 + 2,000 cash. The 800 settled in kind is in none of it.
+        assertEquals(51_000.0, rollUp.totalAssets, 0.001)
+    }
+
+    @Test
+    fun `a real unrecognised method is still surfaced alongside it`() {
+        val rollUp = rollUpAccountBalances(
+            listOf(bank, cash),
+            totals(
+                Triple(SETTLED_IN_KIND, 500.0, 0.0),
+                Triple("Paytm Wallet", 0.0, 300.0)
+            )
+        )
+
+        assertTrue("settled-in-kind must not mask a genuinely lost method", rollUp.hasUnassigned)
+        assertEquals(-300.0, rollUp.unassignedNet, 0.001)
+    }
 }

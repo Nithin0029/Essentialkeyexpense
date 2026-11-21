@@ -43,7 +43,10 @@ fun QuickAddOverlayContent(
     // from a Flow a moment later) — resolving eagerly here would lock this in to the "Other"
     // fallback and never update once the real list loads.
     var selectedCategory by remember { mutableStateOf("") }
-    var paymentMethod by remember { mutableStateOf("UPI") }
+    // Empty until the real list loads, exactly as the category above is. It used to start on
+    // the literal "UPI", which saved to a method that may no longer exist - and this screen in
+    // particular is built to be used without opening a single picker.
+    var paymentMethod by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var friendIdText by remember { mutableStateOf("") }
 
@@ -53,6 +56,12 @@ fun QuickAddOverlayContent(
     LaunchedEffect(debitCategories) {
         if (selectedCategory.isEmpty() && debitCategories.isNotEmpty()) {
             selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory(transactionType, debitCategories, availableCreditCategories)
+        }
+    }
+
+    LaunchedEffect(paymentMethods) {
+        if (paymentMethod.isEmpty() && paymentMethods.isNotEmpty()) {
+            paymentMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(paymentMethods)
         }
     }
 
@@ -130,7 +139,7 @@ fun QuickAddOverlayContent(
                             if (transactionType != "Debit") {
                                 transactionType = "Debit"
                                 selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Debit", debitCategories, availableCreditCategories)
-                                if (paymentMethod == "RAS") paymentMethod = "UPI"
+                                if (paymentMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND) paymentMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(paymentMethods)
                             }
                         },
                         label = { Text("Debit") },
@@ -146,7 +155,7 @@ fun QuickAddOverlayContent(
                             if (transactionType != "Credit") {
                                 transactionType = "Credit"
                                 selectedCategory = com.nothing.expensetracker.ui.history.TransactionConstants.getInitialCategory("Credit", debitCategories, availableCreditCategories)
-                                if (paymentMethod == "RAS") paymentMethod = "UPI"
+                                if (paymentMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND) paymentMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(paymentMethods)
                             }
                         },
                         label = { Text("Credit") },
@@ -188,8 +197,8 @@ fun QuickAddOverlayContent(
                                 onClick = {
                                     selectedCategory = category
                                     categoryExpanded = false
-                                    if (paymentMethod == "RAS" && !com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(transactionType, selectedCategory)) {
-                                        paymentMethod = "UPI"
+                                    if (paymentMethod == com.nothing.expensetracker.ui.history.TransactionConstants.SETTLED_IN_KIND && !com.nothing.expensetracker.ui.history.TransactionConstants.isFriendCategory(transactionType, selectedCategory)) {
+                                        paymentMethod = com.nothing.expensetracker.ui.history.TransactionConstants.defaultMethod(paymentMethods)
                                     }
                                 }
                             )
