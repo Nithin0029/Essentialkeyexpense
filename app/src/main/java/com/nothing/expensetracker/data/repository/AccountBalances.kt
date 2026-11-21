@@ -4,6 +4,18 @@ import com.nothing.expensetracker.data.local.MethodTotals
 import com.nothing.expensetracker.data.local.PaymentMethod
 
 /**
+ * The payment method for a debt a friend settled without money changing hands — they bought the
+ * food, they paid for the thing. It is deliberately not an account: nothing reached a balance,
+ * so nothing should move.
+ *
+ * It has to be named here, in the arithmetic, rather than only in the picker that offers it.
+ * [rollUpAccountBalances] treats anything it cannot place as unassigned and says so in red, and
+ * this money is not missing — it never existed in an account to go missing from. Without this,
+ * anyone who settles up this way carries a permanent warning that their totals are short.
+ */
+const val SETTLED_IN_KIND = "RAS"
+
+/**
  * One account's standing: what it opened with, what has moved through it, and where it is now.
  *
  * An "account" is a payment method that actually holds money — one with no [PaymentMethod.fundedById].
@@ -96,10 +108,15 @@ fun rollUpAccountBalances(
 
     // Transactions filed under a payment method that no longer exists.
     totals.forEach { moved ->
-        if (moved.method.trim().lowercase() !in attributed) {
-            unassignedCredits += moved.credits
-            unassignedDebits += moved.debits
-        }
+        val key = moved.method.trim().lowercase()
+        if (key in attributed) return@forEach
+        // Settled in kind is not money the app failed to place - it never entered an account to
+        // be placed. Counting it here would put a permanent "your totals are short" warning in
+        // front of anyone who settles up with a friend this way. If a user has actually named an
+        // account this, the loop above already claimed it and this is never reached.
+        if (key == SETTLED_IN_KIND.lowercase()) return@forEach
+        unassignedCredits += moved.credits
+        unassignedDebits += moved.debits
     }
 
     return AccountRollUp(

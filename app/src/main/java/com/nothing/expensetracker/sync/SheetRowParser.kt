@@ -129,7 +129,13 @@ internal fun parseBudgetKey(row: List<Any>): BudgetKey? {
  * key — `findRowIndex` looks rows up by id, so a renumbered transaction would later update the
  * wrong row.
  */
-internal fun parseTransactionRow(row: List<Any>): Expense? {
+/**
+ * [fallbackMethod] is used only for rows written before column F existed. It defaults to "UPI"
+ * because that is what this function hardcoded for its whole life and every sheet in the wild
+ * was restored that way — but callers should pass a method that actually exists on this device,
+ * since a transaction attributed to a method that does not is spending that comes off no balance.
+ */
+internal fun parseTransactionRow(row: List<Any>, fallbackMethod: String = "UPI"): Expense? {
     val id = row.cell(0).toSheetLong() ?: return null
     val amount = row.cell(4).toSheetNumber() ?: return null
 
@@ -141,7 +147,7 @@ internal fun parseTransactionRow(row: List<Any>): Expense? {
         description = row.cell(11),
         category = row.cell(3).ifEmpty { "Other" },
         type = row.cell(2).ifEmpty { "Debit" },
-        paymentMethod = row.cell(5).ifEmpty { "UPI" },
+        paymentMethod = row.cell(5).ifEmpty { fallbackMethod },
         friendId = row.cell(6).takeIf { it.isNotEmpty() },
         notes = row.cell(7),
         timestamp = parseTimestamp(row)

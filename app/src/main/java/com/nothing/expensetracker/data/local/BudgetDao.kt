@@ -42,4 +42,22 @@ interface BudgetDao {
 
     @Query("SELECT COUNT(*) FROM budgets WHERE syncStatus = 'Pending' OR syncStatus = 'Failed' OR syncStatus = 'Deleted'")
     fun getUnsyncedCount(): Flow<Int>
+
+    /**
+     * Carries a budget across a category rename.
+     *
+     * A budget is tied to its category by name. Without this the row keeps the old name, and
+     * because the budget screen matches budgets to the categories that currently exist, it stops
+     * being shown at all: the limit looks deleted while it is still in the database and still in
+     * the spreadsheet, and the renamed category looks as though it never had one.
+     *
+     * Marked Pending rather than left Synced because the sheet row's own key is built from the
+     * category name, so that row has to be rewritten as well.
+     */
+    @Query("UPDATE budgets SET categoryName = :newName, syncStatus = 'Pending' WHERE categoryName = :oldName COLLATE NOCASE")
+    suspend fun updateCategoryNameInBudgets(oldName: String, newName: String)
+
+    /** Soft-deletes the budgets of a category that is going away, so the sync removes their rows. */
+    @Query("UPDATE budgets SET syncStatus = 'Deleted' WHERE categoryName = :name COLLATE NOCASE AND syncStatus != 'Deleted'")
+    suspend fun markBudgetsDeletedForCategory(name: String)
 }

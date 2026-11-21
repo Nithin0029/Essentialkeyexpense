@@ -1,5 +1,6 @@
 package com.nothing.expensetracker.data.repository
 
+import com.nothing.expensetracker.data.local.AutopayDao
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.local.ExpenseDao
 import com.nothing.expensetracker.data.local.Friend
@@ -13,7 +14,8 @@ import javax.inject.Singleton
 @Singleton
 class FriendRepository @Inject constructor(
     private val friendDao: FriendDao,
-    private val expenseDao: ExpenseDao
+    private val expenseDao: ExpenseDao,
+    private val autopayDao: AutopayDao
 ) {
     fun getAllFriends() = friendDao.getAllFriends()
 
@@ -43,6 +45,11 @@ class FriendRepository @Inject constructor(
         if (nameChanged) {
             // 1. Update local transactions
             expenseDao.updateFriendNameInTransactions(oldName, updatedFriend.name)
+            // 2. And any autopay rule, which stores the friend by name just as transactions do.
+            //    Left alone, the rule's monthly transaction points at a friend who no longer
+            //    exists under that name - which puts them back in the Friends list, owing or
+            //    owed whatever that one side of the rule says.
+            autopayDao.updateFriendNameInRules(oldName, updatedFriend.name)
         }
 
         // 2. Update the friend profile locally
@@ -58,6 +65,8 @@ class FriendRepository @Inject constructor(
 
         // 1. Remove friend link from all transactions (Keep the records)
         expenseDao.nullifyFriendId(deletedFriend.name)
+        // ...and from any rule, or the next firing re-creates the friend by name.
+        autopayDao.clearFriendFromRules(deletedFriend.name)
 
         // 2. Mark friend for deletion to trigger sync
         friendDao.updateFriend(deletedFriend)
@@ -75,6 +84,7 @@ class FriendRepository @Inject constructor(
         val deletedFriend = friend.copy(syncStatus = "Deleted")
 
         // 1. Fetch and mark all associated transactions for deletion
+        autopayDao.clearFriendFromRules(friend.name)
         val transactions = expenseDao.getTransactionsByFriend(friend.name).first()
         transactions.forEach { expense ->
             val deletedExpense = expense.copy(syncStatus = "Deleted")

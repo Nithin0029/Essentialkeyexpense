@@ -108,4 +108,29 @@ class TransactionConstantsTest {
             assertFalse("$it was retired but is still seeded", it in seeded)
         }
     }
+
+    // --- what a new transaction opens on -------------------------------------------------
+    //
+    // Every screen used to open on the literal "UPI". Harmless while UPI could not be renamed
+    // or deleted; once it could, an untouched picker saved money against a method that was not
+    // there, and it came off no balance.
+
+    @Test
+    fun `the default is a method that actually exists`() {
+        assertEquals("SBI Bank", TransactionConstants.defaultMethod(listOf("SBI Bank", "Cash")))
+        assertEquals("PhonePe", TransactionConstants.defaultMethod(listOf("PhonePe")))
+    }
+
+    @Test
+    fun `settled-in-kind is never the default`() {
+        // It is offered for friend settlements, but it is not an account and nothing should
+        // open on it: a transaction left on it by accident reaches no balance at all.
+        assertEquals("Cash", TransactionConstants.defaultMethod(listOf(TransactionConstants.SETTLED_IN_KIND, "Cash")))
+    }
+
+    @Test
+    fun `an empty list still yields something saveable`() {
+        // The list arrives from a Flow, so a screen can compose before it lands.
+        assertEquals(TransactionConstants.STANDARD_METHODS.first(), TransactionConstants.defaultMethod(emptyList()))
+    }
 }

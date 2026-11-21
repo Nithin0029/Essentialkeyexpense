@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.nothing.expensetracker.sync.SpreadsheetManager
+import java.time.LocalDate
 import javax.inject.Inject
 
 data class AutopayListUiState(
@@ -30,7 +31,18 @@ class AutopayViewModel @Inject constructor(
 
     fun setActive(rule: AutopayRule, active: Boolean) {
         viewModelScope.launch {
-            repository.updateAutopayRule(rule.copy(isActive = active))
+            val updated = if (active && !rule.isActive) {
+                // Switching a rule back on resumes it from now. Without this the catch-up would
+                // read every month it spent switched off as a month it owes, and create them all
+                // at once - a rule paused in January would bill ten months in November.
+                rule.copy(
+                    isActive = true,
+                    lastRunMonth = resumeMonthKey(rule.lastRunMonth, LocalDate.now())
+                )
+            } else {
+                rule.copy(isActive = active)
+            }
+            repository.updateAutopayRule(updated)
         }
     }
 

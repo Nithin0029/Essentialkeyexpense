@@ -44,12 +44,17 @@ class EditTransactionViewModel @Inject constructor(
                 // New transactions start as "Debit", so seed a Debit-scoped category.
                 val firstCategory = repository.getCategories().first()
                     .firstOrNull { it.parentId == null && it.usedForDebit }?.name ?: "Other"
+                // Taken from the methods that exist rather than hardcoded: "UPI" can be renamed
+                // or deleted, and a method that is not there saves money off no balance.
+                val firstMethod = TransactionConstants.defaultMethod(
+                    repository.getPaymentMethodNames().first()
+                )
                 _expense.value = Expense(
                     amount = 0.0,
                     description = "",
                     category = firstCategory,
                     type = "Debit",
-                    paymentMethod = "UPI",
+                    paymentMethod = firstMethod,
                     timestamp = if (initialTimestamp > 0L) initialTimestamp else System.currentTimeMillis()
                 )
             } else {

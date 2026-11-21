@@ -13,6 +13,7 @@ import com.google.api.services.drive.Drive
 import com.google.api.services.drive.model.FileList
 import com.nothing.expensetracker.BuildConfig
 import com.nothing.expensetracker.data.local.AppPrefs
+import com.nothing.expensetracker.ui.history.TransactionConstants
 import com.nothing.expensetracker.data.local.DATABASE_VERSION
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -955,40 +956,101 @@ class SpreadsheetManager @Inject constructor(
         }
     }
 
-    suspend fun addTransactionToSheet(transaction: com.nothing.expensetracker.data.local.Expense): Boolean = withContext(Dispatchers.IO) {
+    /** The twelve cells of a Transactions row, in column order. */
+    private fun transactionRowValues(
+        transaction: com.nothing.expensetracker.data.local.Expense
+    ): List<Any> {
+        val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        return listOf(
+            transaction.id.toString(),
+            dateFormat.format(Date(transaction.timestamp)),
+            transaction.type,
+            sheetSafeText(transaction.category),
+            transaction.amount.toString(),
+            sheetSafeText(transaction.paymentMethod),
+            sheetSafeText(transaction.friendId ?: ""),
+            sheetSafeText(transaction.notes),
+            transaction.timestamp.toString(),
+            transaction.timestamp.toString(),
+            "Synced",
+            sheetSafeText(transaction.description)
+        )
+    }
+
+    /**
+     * Writes a transaction to the sheet: in place if its id is already there, appended if not.
+     *
+     * It used to append unconditionally, and the sync queue makes no distinction between a new
+     * transaction and an edited one — both arrive here as "Pending". So every edit left a second
+     * row carrying the same Transaction ID, and the restore, which takes one row per id, could
+     * bring back the version from before the edit. A failed sync that retried did the same.
+     *
+     * Looking the row up first also makes this idempotent, which is what a queue that retries
+     * needs it to be.
+     */
+    suspend fun upsertTransactionInSheet(transaction: com.nothing.expensetracker.data.local.Expense): Boolean = withContext(Dispatchers.IO) {
         Log.i(tag, "[SYNC] Processing Transaction ID: ${transaction.id}")
         val service = getSheetsService() ?: return@withContext false
         val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
         try {
-            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val formattedDate = dateFormat.format(Date(transaction.timestamp))
-            val rowValues = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, sheetSafeText(transaction.category), transaction.amount.toString(), sheetSafeText(transaction.paymentMethod), sheetSafeText(transaction.friendId ?: ""), sheetSafeText(transaction.notes), transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", sheetSafeText(transaction.description)))
-            val body = ValueRange().setValues(rowValues)
-            val response = service.spreadsheets().values().append(spreadsheetId, "Transactions!A2", body).setValueInputOption("USER_ENTERED").execute()
-            if (response != null && response.updates?.updatedRows != null && response.updates.updatedRows > 0) {
-                Log.i(tag, "[SYNC] Upload success | ID: ${transaction.id}")
-                true
-            } else false
+            val body = ValueRange().setValues(listOf(transactionRowValues(transaction)))
+            val rowIndex = findRowIndex(service, spreadsheetId, "Transactions", transaction.id.toString())
+
+            if (rowIndex != null) {
+                service.spreadsheets().values()
+                    .update(spreadsheetId, "Transactions!A$rowIndex:L$rowIndex", body)
+                    .setValueInputOption("USER_ENTERED")
+                    .execute()
+                Log.i(tag, "[SYNC] Updated row $rowIndex | ID: ${transaction.id}")
+                return@withContext true
+            }
+
+            val response = service.spreadsheets().values()
+                .append(spreadsheetId, "Transactions!A2", body)
+                .setValueInputOption("USER_ENTERED")
+                .execute()
+            val appended = (response?.updates?.updatedRows ?: 0) > 0
+            if (appended) Log.i(tag, "[SYNC] Appended | ID: ${transaction.id}")
+            appended
         } catch (e: Exception) {
             Log.e(tag, "[SYNC] Upload failure | ID: ${transaction.id}", e)
             false
         }
     }
 
-    suspend fun updateTransactionInSheet(transaction: com.nothing.expensetracker.data.local.Expense): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * Puts the Transactions tab in date order, newest first.
+     *
+     * Rows land in whatever order the sync queue drained, which is roughly the order things were
+     * entered and not the order they happened. Sorted on the epoch millis in column I, then by
+     * Transaction ID, so rows sharing a timestamp - which every row written before the date
+     * picker stopped discarding the time of day does - still come out newest-entered first.
+     */
+    suspend fun sortTransactionsSheet(): Boolean = withContext(Dispatchers.IO) {
         val service = getSheetsService() ?: return@withContext false
         val spreadsheetId = appPrefs.spreadsheetId.value ?: return@withContext false
         try {
-            val rowIndex = findRowIndex(service, spreadsheetId, "Transactions", transaction.id.toString())
-            if (rowIndex == null) return@withContext false
-            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            val formattedDate = dateFormat.format(Date(transaction.timestamp))
-            val values = listOf(listOf(transaction.id.toString(), formattedDate, transaction.type, sheetSafeText(transaction.category), transaction.amount.toString(), sheetSafeText(transaction.paymentMethod), sheetSafeText(transaction.friendId ?: ""), sheetSafeText(transaction.notes), transaction.timestamp.toString(), transaction.timestamp.toString(), "Synced", sheetSafeText(transaction.description)))
-            val body = ValueRange().setValues(values)
-            service.spreadsheets().values().update(spreadsheetId, "Transactions!A$rowIndex:L$rowIndex", body).setValueInputOption("USER_ENTERED").execute()
+            val sheetId = service.spreadsheets().get(spreadsheetId).execute()
+                .sheets.find { it.properties.title == "Transactions" }?.properties?.sheetId
+                ?: return@withContext false
+
+            val request = Request().setSortRange(
+                SortRangeRequest()
+                    // From row 2 down, so the header stays put.
+                    .setRange(GridRange().setSheetId(sheetId).setStartRowIndex(1))
+                    .setSortSpecs(
+                        listOf(
+                            SortSpec().setDimensionIndex(8).setSortOrder("DESCENDING"),
+                            SortSpec().setDimensionIndex(0).setSortOrder("DESCENDING")
+                        )
+                    )
+            )
+            service.spreadsheets()
+                .batchUpdate(spreadsheetId, BatchUpdateSpreadsheetRequest().setRequests(listOf(request)))
+                .execute()
             true
         } catch (e: Exception) {
-            Log.e(tag, "Failed to update transaction in sheet", e)
+            Log.e(tag, "[SYNC] Failed to sort the Transactions tab", e)
             false
         }
     }
@@ -1462,16 +1524,24 @@ class SpreadsheetManager @Inject constructor(
     private suspend fun restoreTransactions(rows: List<List<Any>>): Int {
         val repository = repositoryProvider.get()
         val existingIds = repository.getAllExpenseIds().toHashSet()
+        // Only reached by rows old enough to predate the Payment Method column. Taken from the
+        // methods this device actually has, so the restore cannot invent one that is not there.
+        val fallbackMethod = TransactionConstants.defaultMethod(repository.getPaymentMethodNames().first())
 
         // Collected first, then written in one go: a restore can be hundreds of rows, and one
         // insert each is both slow and non-atomic.
         val toInsert = ArrayList<com.nothing.expensetracker.data.local.Expense>()
-        rows.forEach { row ->
-            val expense = parseTransactionRow(row) ?: return@forEach
-            if (expense.id in existingIds) return@forEach
-            toInsert.add(expense)
-            existingIds.add(expense.id)
-        }
+        // Sheets written before edits stopped appending carry the same id more than once. The
+        // later row is the later write, so it wins - taking the first would restore the values
+        // from before the edit that created the duplicate.
+        rows.mapNotNull { parseTransactionRow(it, fallbackMethod) }
+            .associateBy { it.id }
+            .values
+            .forEach { expense ->
+                if (expense.id in existingIds) return@forEach
+                toInsert.add(expense)
+                existingIds.add(expense.id)
+            }
 
         if (toInsert.isNotEmpty()) repository.insertRestoredExpenses(toInsert)
         return toInsert.size
@@ -1528,6 +1598,8 @@ class SpreadsheetManager @Inject constructor(
     private suspend fun restoreAutopayRules(rows: List<List<Any>>): Int {
         val repository = repositoryProvider.get()
         var restored = 0
+        val autopayFallbackMethod =
+            TransactionConstants.defaultMethod(repository.getPaymentMethodNames().first())
         rows.forEach { row ->
             val id = row.cell(0).toSheetLong() ?: return@forEach
             val amount = row.cell(4).toSheetNumber() ?: return@forEach
@@ -1540,11 +1612,16 @@ class SpreadsheetManager @Inject constructor(
                     description = row.cell(1),
                     category = row.cell(2).ifEmpty { "Other" },
                     type = row.cell(3).ifEmpty { "Debit" },
-                    paymentMethod = row.cell(5).ifEmpty { "UPI" },
+                    paymentMethod = row.cell(5).ifEmpty { autopayFallbackMethod },
                     friendId = row.cell(6).takeIf { it.isNotEmpty() },
                     dayOfMonth = dayOfMonth.coerceIn(1, 31),
                     isActive = row.cell(8).toSheetBoolean(),
-                    lastRunMonth = row.cell(9).takeIf { it.isNotEmpty() }
+                    lastRunMonth = row.cell(9).takeIf { it.isNotEmpty() },
+                    // The sheet does not carry the day a rule was made, and a restored rule is
+                    // not a new one: dating it "now" would hold back a payment that is already
+                    // due this month. Zero is the "not known" case, which does not hold anything
+                    // back - see isAutopayDue.
+                    createdAt = 0L
                 )
             )
             restored++

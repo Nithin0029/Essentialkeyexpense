@@ -58,9 +58,19 @@ class HistoryViewModel @Inject constructor(
         .map { listOf("All") + it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
 
-    val paymentMethods: StateFlow<List<String>> = repository.getPaymentMethodNames()
-        .map { listOf("All") + it }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
+    /**
+     * The filter offers every method that *appears in the history*, not only the ones that still
+     * exist. A transaction left on a deleted method is exactly the one worth finding — it is the
+     * money the dashboard reports as unassigned — and a filter built from the current list is the
+     * one place it could never be looked up.
+     */
+    val methodsInUse: StateFlow<List<String>> = combine(
+        repository.getPaymentMethodNames(),
+        repository.getTotalsByPaymentMethod()
+    ) { current, totals ->
+        listOf("All") + (current + totals.map { it.method }.filter { it.isNotBlank() })
+            .distinctBy { it.trim().lowercase() }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("All"))
 
     val uiState: StateFlow<HistoryUiState> = combine(
         _searchQuery.debounce(300),

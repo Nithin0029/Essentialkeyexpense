@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nothing.expensetracker.data.local.AutopayRule
+import com.nothing.expensetracker.ui.history.TransactionConstants
 import com.nothing.expensetracker.data.repository.AutopayRepository
 import com.nothing.expensetracker.data.repository.ExpenseRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,11 +35,16 @@ class AddEditAutopayViewModel @Inject constructor(
             if (ruleId == 0L) {
                 // New rules start as "Debit", so seed a Debit-scoped category.
                 val firstCategory = expenseRepository.getDebitCategoryNames().first().firstOrNull() ?: "Other"
+                // A rule fires unattended, every month. Seeding it with a method that may have
+                // been renamed away is how a rule quietly creates money that sits in no account.
+                val firstMethod = TransactionConstants.defaultMethod(
+                    expenseRepository.getPaymentMethodNames().first()
+                )
                 _rule.value = AutopayRule(
                     amount = 0.0,
                     category = firstCategory,
                     type = "Debit",
-                    paymentMethod = "UPI",
+                    paymentMethod = firstMethod,
                     dayOfMonth = 1
                 )
             } else {

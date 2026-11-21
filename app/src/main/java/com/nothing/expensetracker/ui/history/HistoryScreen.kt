@@ -21,7 +21,7 @@ fun HistoryScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val categories by viewModel.categories.collectAsState()
-    val methods by viewModel.paymentMethods.collectAsState()
+    val methods by viewModel.methodsInUse.collectAsState()
 
     var selectedExpense by remember { mutableStateOf<Expense?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }

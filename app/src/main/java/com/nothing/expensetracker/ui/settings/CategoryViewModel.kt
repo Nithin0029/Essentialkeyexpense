@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nothing.expensetracker.data.local.Category
 import com.nothing.expensetracker.data.repository.ExpenseRepository
+import com.nothing.expensetracker.sync.SpreadsheetManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,7 +47,8 @@ data class CategoryUiState(
 
 @HiltViewModel
 class CategoryViewModel @Inject constructor(
-    private val repository: ExpenseRepository
+    private val repository: ExpenseRepository,
+    private val spreadsheetManager: SpreadsheetManager
 ) : ViewModel() {
 
     private val _scope = MutableStateFlow(CategoryScope.DEBIT)
@@ -163,7 +165,14 @@ class CategoryViewModel @Inject constructor(
             if (existing != null && existing.id != category.id) {
                 onResult(false, "Category already exists.")
             } else {
-                repository.updateCategory(category.name, category.copy(name = trimmedName))
+                val oldName = category.name
+                repository.updateCategory(oldName, category.copy(name = trimmedName))
+                if (oldName != trimmedName) {
+                    // A budget's sheet row is keyed by the category name, so the renamed budget
+                    // is pushed as a new row and the old one has to be taken out by hand - or
+                    // the restore brings the limit back under a category that no longer exists.
+                    spreadsheetManager.deleteBudgetFromSheet(oldName)
+                }
                 onResult(true, null)
             }
         }
@@ -189,6 +198,14 @@ class CategoryViewModel @Inject constructor(
 
             if (repository.countSubcategories(category.id) > 0) {
                 onResult(false, "Delete or move its subcategories first.")
+                return@launch
+            }
+
+            // A rule outlives the screen it was made on. Deleting the category underneath it
+            // leaves it spending into a name nothing matches, once a month, unattended.
+            val rules = repository.autopayRulesUsingCategory(category.name)
+            if (rules.isNotEmpty()) {
+                onResult(false, autopayBlockMessage(rules.size, category.name))
                 return@launch
             }
 
