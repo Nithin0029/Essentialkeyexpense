@@ -88,6 +88,27 @@ class AppPrefs @Inject constructor(
     }
 
     /**
+     * Whether the user has been shown what this app is and where their data goes.
+     *
+     * An install that is already in use is not a first run, however new the flag is: anyone with
+     * a spreadsheet or a balance on record has been using the app for versions, and explaining it
+     * to them now would be an odd interruption. Only a genuinely empty install is greeted.
+     */
+    private val _hasSeenWelcome = MutableStateFlow(
+        prefs.getBoolean(KEY_WELCOME_SEEN, false) ||
+            prefs.getBoolean(KEY_BALANCES_SET_UP, false) ||
+            prefs.contains("opening_bank_balance") ||
+            prefs.contains("opening_cash_balance") ||
+            syncPrefs.contains("spreadsheet_id")
+    )
+    val hasSeenWelcome: StateFlow<Boolean> = _hasSeenWelcome.asStateFlow()
+
+    fun markWelcomeSeen() {
+        prefs.edit().putBoolean(KEY_WELCOME_SEEN, true).apply()
+        _hasSeenWelcome.value = true
+    }
+
+    /**
      * Whether the two opening balances stored here have been copied onto their accounts.
      *
      * A one-shot migration rather than an invariant: once the accounts own the numbers, these
@@ -125,6 +146,7 @@ class AppPrefs @Inject constructor(
 
     private companion object {
         const val KEY_BALANCES_SET_UP = "balances_set_up"
+        const val KEY_WELCOME_SEEN = "welcome_seen"
         const val KEY_OPENING_BALANCES_MIGRATED = "opening_balances_migrated"
     }
 }
