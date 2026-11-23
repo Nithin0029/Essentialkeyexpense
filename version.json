@@ -1,21 +1,11 @@
 {
-  "versionCode": 384,
-  "versionName": "3.8.4",
-  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.4/EssentialExpenseTracker-v3.8.4.apk",
+  "versionCode": 385,
+  "versionName": "3.8.5",
+  "apkUrl": "https://github.com/Nithin0029/Essentialkeyexpense/releases/download/v3.8.5/EssentialExpenseTracker-v3.8.5.apk",
   "releaseNotes": [
-    "Fixed: after renaming or deleting UPI, every new-transaction screen still opened on \"UPI\". Saving without touching the picker filed the money against a method that no longer existed, so it came off no balance. Screens now start on an account you actually have",
-    "Fixed: renaming an account left autopay rules pointing at the old name, so they fired into nothing every month while telling you they had worked. Rules now follow a rename, and an account cannot be deleted while a rule still uses it",
-    "Fixed: renaming left the old name in your spreadsheet as well as the new one, so restoring counted that account's opening balance twice",
-    "Fixed: a friend settling up in kind - buying the food instead of paying you back - is no longer reported as money the app could not place",
-    "Fixed: editing a transaction added a second copy to your spreadsheet instead of changing the first, so restoring could bring back the version from before the edit",
-    "Fixed: changing a transaction's date threw away its time, showing 05:30 on everything edited - and, worse, left a day's transactions with no recorded order",
-    "History and the spreadsheet are now in date order, newest first, within the day as well as across days",
-    "History can now filter by a payment method you have since deleted, which is where stranded transactions hide",
-    "Fixed: renaming a category left its budget behind under the old name, so the limit vanished from the Budgets screen while still sitting in your spreadsheet. Budgets now follow a rename, and are removed with the category",
-    "Fixed: renaming a category or a friend left autopay rules pointing at the old name. Rules now follow both, and a category cannot be deleted while a rule still spends into it",
-    "Fixed: a new autopay rule fired the moment it was saved if its day of the month had already passed - so a rule set up on the 20th for \"day 1\" charged you straight away instead of starting next month",
-    "Fixed: a month your phone spent switched off was skipped outright - rent or an SIP simply never appeared for it. Autopay now catches up the months it missed, up to three, and the notification says how many went in",
-    "Fixed: an autopay transaction was dated the day it happened to fire rather than the day it was due, so a payment due on the 31st could land in the next month's report",
+    "New: a short welcome on the first launch, explaining that your records live in a Google Sheet in your own Drive, that the sheet is also your backup, and why the app asks for your balances before anything else",
+    "The same explanation is in Settings under About, as \"How this works\", so it is not gone the moment it is dismissed",
+    "Everything in 3.8.4 is included - see that release for the thirteen fixes it carried",
     "Installs over the top of 3.6.0 or later"
   ],
   "forceUpdate": false

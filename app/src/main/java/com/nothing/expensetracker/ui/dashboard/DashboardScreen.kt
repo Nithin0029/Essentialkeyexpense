@@ -24,6 +24,7 @@ import com.nothing.expensetracker.ui.DashboardUiState
 import com.nothing.expensetracker.ui.MainViewModel
 import com.nothing.expensetracker.data.local.Expense
 import com.nothing.expensetracker.data.repository.AccountBalance
+import com.nothing.expensetracker.ui.onboarding.WelcomeDialog
 import com.nothing.expensetracker.util.formatCurrency
 import java.text.SimpleDateFormat
 import java.util.*
@@ -35,15 +36,21 @@ fun DashboardScreen(
     viewModel: MainViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val needsWelcome by viewModel.needsWelcome.collectAsState()
     val needsBalanceSetup by viewModel.needsBalanceSetup.collectAsState()
     val setupAccounts by viewModel.accounts.collectAsState()
 
     // Shown once per install, over whichever dashboard state is rendering. The dashboard is the
     // first screen past the MPIN gate, so this is the earliest point the user can be asked.
     //
-    // Held back until the accounts exist: they are seeded on the first launch, and a prompt with
-    // no fields in it would ask for balances it had nowhere to put.
-    if (needsBalanceSetup && setupAccounts.isNotEmpty()) {
+    // The welcome comes first and alone: it ends by saying the balance prompt is next, which is
+    // what makes being asked for account balances by freshly sideloaded software make any sense.
+    //
+    // The balance prompt is held back until the accounts exist: they are seeded on the first
+    // launch, and a prompt with no fields in it would ask for balances it had nowhere to put.
+    if (needsWelcome) {
+        WelcomeDialog(onDismiss = viewModel::markWelcomeSeen)
+    } else if (needsBalanceSetup && setupAccounts.isNotEmpty()) {
         InitialBalanceDialog(
             accounts = setupAccounts,
             onConfirm = { balances -> viewModel.completeBalanceSetup(balances) },

@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import com.nothing.expensetracker.ui.onboarding.WelcomeDialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -1249,6 +1250,19 @@ fun AboutCard() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // The first-run explanation is one tap from being gone forever, and it is the only
+            // place that says where the data actually goes.
+            var showWelcome by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { showWelcome = true },
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("How this works", color = MaterialTheme.colorScheme.primary)
+            }
+            if (showWelcome) {
+                WelcomeDialog(onDismiss = { showWelcome = false })
+            }
         }
     }
 }

@@ -72,6 +72,32 @@ Requires Android 8.0 (API 26) or newer.
 
 ---
 
+## First run
+
+From 3.8.5 the app explains this itself on the first launch, and keeps the explanation in
+**Settings → About → How this works**. The short version:
+
+**Sign in, from Settings.** The app creates a spreadsheet called **Expense Tracker Database** in
+your own Google Drive, and everything you record is written to it — transactions, categories,
+friends, budgets, autopay rules. It is your file in your account. There is no account to create
+here, no server of mine in the path, and nothing leaves your Drive. See [Privacy](#privacy).
+
+**That sheet is the backup.** Reinstall, or move to a new phone, sign in with the same Google
+account, and it all comes back. This is the only reason a reinstall is survivable, and it is why
+the upgrade note above says to sync *before* uninstalling.
+
+**Then say what you have.** The dashboard asks for the balance of each account. Enter what is
+actually in each one right now: the app works forwards from an opening balance, which is not a
+number anyone knows, so it solves for that from what you have today. Skip it and every total is a
+count from zero instead of real money — you can still set them later, per account, in Settings.
+
+**Then make it yours.** Rename accounts to what you call them, add a second bank, a wallet or
+cash, and set monthly budgets. All in Settings.
+
+Updates arrive in the app from here on: it checks on launch and offers the new version.
+
+---
+
 ## Building
 
 ```bash

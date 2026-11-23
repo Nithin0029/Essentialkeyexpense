@@ -68,6 +68,13 @@ class MainViewModel @Inject constructor(
         .map { !it }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    /** True until the user has been told what the app is, once per install. */
+    val needsWelcome: StateFlow<Boolean> = appPrefs.hasSeenWelcome
+        .map { !it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun markWelcomeSeen() = appPrefs.markWelcomeSeen()
+
     /**
      * Every account that holds money, for the first-run prompt to ask about by name.
      *
